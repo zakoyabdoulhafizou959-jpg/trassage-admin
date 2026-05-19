@@ -3,223 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Surveillance Live</title>
+    <title>Console Admin - Surveillance Live</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
-            color: #f8fafc;
-            padding: 20px;
+            font-family: 'Inter', sans-serif;
         }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 32px;
-            border-radius: 24px;
-            margin-bottom: 24px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-
-        h1 {
-            font-size: 2rem;
-            margin-bottom: 8px;
-        }
-
-        .user-selector {
-            background: #1e293b;
-            padding: 20px;
-            border-radius: 16px;
-            margin-bottom: 24px;
-            border: 1px solid #334155;
-        }
-
-        .user-selector label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #94a3b8;
-        }
-
-        select {
-            width: 100%;
-            padding: 12px;
-            border-radius: 12px;
-            border: 1px solid #475569;
-            background: #0f172a;
-            color: #f8fafc;
-            font-size: 1rem;
-            outline: none;
-        }
-
-        /* Cadre récepteur d'image */
-        .live-viewer {
-            background: #000;
-            border-radius: 24px;
-            overflow: hidden;
-            margin-bottom: 24px;
-            position: relative;
-            min-height: 480px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px dashed #334155;
-        }
-
-        /* Image dynamique au lieu de l'élément video */
-        #remoteImage {
-            width: 100%;
-            height: auto;
-            max-height: 70vh;
-            object-fit: contain;
-            display: none;
-        }
-
-        .placeholder-text {
-            color: #64748b;
-            font-size: 1.2rem;
-            text-align: center;
-            padding: 20px;
-        }
-
-        .controls {
-            background: #1e293b;
-            padding: 20px;
-            border-radius: 16px;
-            margin-bottom: 24px;
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            border: 1px solid #334155;
-        }
-
-        button {
-            padding: 12px 24px;
-            border-radius: 12px;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.2s ease;
-        }
-
-        button:active {
-            transform: scale(0.97);
-        }
-
-        button:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-
-        .fullscreen-btn {
-            background: #475569;
-            color: white;
-        }
-
-        .status {
-            background: #1e293b;
-            color: white;
-            padding: 12px;
-            border-radius: 12px;
-            text-align: center;
-            border: 1px solid #334155;
-            font-weight: 600;
-        }
-
-        .live-badge {
-            background: #dc2626;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            animation: pulse 1s infinite;
-            display: inline-block;
-            margin-left: 10px;
-            vertical-align: middle;
-        }
-
-        @keyframes pulse {
+        @keyframes pulse-red {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
+            50% { opacity: 0.4; }
         }
-
-        .user-info {
-            background: #1e293b;
-            padding: 16px;
-            border-radius: 12px;
-            margin-bottom: 16px;
-            display: none;
-            border: 1px solid #334155;
-        }
-
-        .connection-log {
-            background: #020617;
-            color: #38bdf8;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            margin-top: 8px;
-            font-family: monospace;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #1e293b;
+        .live-pulse {
+            animation: pulse-red 1s infinite;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎥 Administration - Live View</h1>
-            <p>Visualisation photo et coordonnées GPS des utilisateurs</p>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- En-tête -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+                    <span>🎥</span> Console de Surveillance Live
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Réception directe du flux d'images et données GPS</p>
+            </div>
+            <div id="connectionStatus" class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-semibold text-slate-400 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="statusDot"></span>
+                <span id="statusText">Système en attente</span>
+            </div>
         </div>
 
-        <div class="user-selector">
-            <label>👤 Sélectionner un utilisateur en ligne :</label>
-            <select id="userSelect">
-                <option value="">-- Attente d'utilisateurs actifs --</option>
-            </select>
-        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Panneau de contrôle gauche -->
+            <div class="space-y-6 lg:col-span-1">
+                <!-- Sélecteur d'utilisateur -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
+                    <h2 class="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">👤 Utilisateurs en ligne</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-2">Choisir une cible :</label>
+                            <select id="userSelect" class="w-full bg-slate-950 text-slate-300 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-all">
+                                <option value="">-- Attente d'utilisateurs --</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
 
-        <div id="userInfo" class="user-info"></div>
+                <!-- Position GPS -->
+                <div id="userInfo" class="hidden bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
+                    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📍 Coordonnées GPS</h3>
+                    <div id="gpsData" class="space-y-3 text-sm">
+                        <!-- Rempli en JS -->
+                    </div>
+                </div>
 
-        <div class="live-viewer" id="liveViewer">
-            <div id="placeholderText" class="placeholder-text">💡 Sélectionnez un utilisateur et cliquez sur "Se connecter"</div>
-            <img id="remoteImage" alt="Flux Live de l'utilisateur">
-        </div>
+                <!-- Terminal des logs de connexion -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col h-64">
+                    <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">💾 Logs système</h3>
+                    <div id="connectionLog" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-[10px] font-mono text-cyan-400 overflow-y-auto space-y-1">
+                        <!-- Rempli en JS -->
+                    </div>
+                </div>
+            </div>
 
-        <div class="controls">
-            <button id="connectBtn" class="btn-primary">🔗 Se connecter au flux</button>
-            <button id="disconnectBtn" class="btn-danger" disabled>⏹️ Déconnecter</button>
-            <button id="fullscreenBtn" class="fullscreen-btn" disabled>🖥️ Plein écran</button>
-            <button id="debugBtn" style="background:#475569;">🐛 Infos Flux</button>
-        </div>
+            <!-- Retour d'image (Droite) -->
+            <div class="lg:col-span-2 space-y-4">
+                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3 px-2">
+                        <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📺 Flux d'images</span>
+                        <div class="flex items-center gap-3 text-xs text-slate-500">
+                            <span id="metaRes">-- px</span>
+                            <span class="text-slate-700">|</span>
+                            <span id="metaLatency">-- ms (latence)</span>
+                        </div>
+                    </div>
 
-        <div id="status" class="status">
-            💡 En attente d'action
+                    <!-- Cadre d'image -->
+                    <div class="relative bg-slate-950 aspect-video rounded-2xl overflow-hidden border border-slate-850 flex items-center justify-center min-h-[350px]">
+                        <div id="placeholderText" class="absolute flex flex-col items-center justify-center text-slate-600 p-6 text-center">
+                            <span class="text-5xl mb-3">📡</span>
+                            <p class="text-sm font-medium">Sélectionnez un utilisateur actif à gauche puis cliquez sur "Se connecter"</p>
+                        </div>
+                        <img id="remoteImage" alt="Flux Live" class="hidden w-full h-full object-contain">
+                    </div>
+
+                    <!-- Boutons d'action -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                        <button id="connectBtn" class="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                            🔗 Se connecter
+                        </button>
+                        <button id="disconnectBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-red-900 hover:text-white text-slate-400 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                            ⏹️ Arrêter
+                        </button>
+                        <button id="fullscreenBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                            🖥️ Plein écran
+                        </button>
+                        <button id="debugBtn" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all col-span-1">
+                            🐛 Infos Flux
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div id="connectionLog" class="connection-log"></div>
     </div>
 
     <script type="module">
@@ -243,6 +133,7 @@
         let currentUserId = null;
         let frameListenerRef = null;
         let locationListenerRef = null;
+        let frameCount = 0;
 
         const remoteImage = document.getElementById('remoteImage');
         const placeholderText = document.getElementById('placeholderText');
@@ -250,23 +141,31 @@
         const disconnectBtn = document.getElementById('disconnectBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
         const debugBtn = document.getElementById('debugBtn');
-        const statusDiv = document.getElementById('status');
-        const connectionLog = document.getElementById('connectionLog');
         const userSelect = document.getElementById('userSelect');
         const userInfoDiv = document.getElementById('userInfo');
+        const gpsDataDiv = document.getElementById('gpsData');
+        const connectionLog = document.getElementById('connectionLog');
+
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const metaRes = document.getElementById('metaRes');
+        const metaLatency = document.getElementById('metaLatency');
 
         function addLog(message) {
             const time = new Date().toLocaleTimeString();
-            connectionLog.innerHTML = `[${time}] ${message}<br>` + connectionLog.innerHTML;
+            connectionLog.innerHTML = `<p>[${time}] ${message}</p>` + connectionLog.innerHTML;
         }
 
-        function setStatus(message, isLive = false) {
-            statusDiv.innerHTML = message;
-            if (isLive) {
-                statusDiv.style.background = '#dc2626';
-                statusDiv.innerHTML += ' <span class="live-badge">LIVE</span>';
+        function setSystemStatus(message, state = 'idle') {
+            statusText.innerText = message;
+            statusDot.className = "w-2.5 h-2.5 rounded-full";
+            
+            if (state === 'live') {
+                statusDot.classList.add('bg-red-500', 'live-pulse');
+            } else if (state === 'pending') {
+                statusDot.classList.add('bg-amber-500');
             } else {
-                statusDiv.style.background = '#1e293b';
+                statusDot.classList.add('bg-slate-600');
             }
         }
 
@@ -274,29 +173,31 @@
             const usersRef = ref(database, 'users');
             onValue(usersRef, (snapshot) => {
                 const users = snapshot.val();
-                
-                // Conserver l'utilisateur actuellement sélectionné s'il existe toujours
                 const previousSelection = userSelect.value;
+                
                 userSelect.innerHTML = '<option value="">-- Choisir un utilisateur --</option>';
                 
                 let foundActive = false;
                 if (users) {
                     Object.keys(users).forEach(userId => {
-                        if (users[userId].active === true) {
+                        const userObj = users[userId];
+                        // Supporte à la fois un booléen pur ou un objet complexe
+                        const isUserActive = userObj === true || userObj.active === true || (userObj.active && userObj.active.active === true);
+                        
+                        if (isUserActive) {
                             foundActive = true;
                             const isSelected = (userId === previousSelection) ? 'selected' : '';
-                            userSelect.innerHTML += `<option value="${userId}" ${isSelected}>👤 Utilisateur #${userId.slice(-6)} (En ligne)</option>`;
+                            userSelect.innerHTML += `<option value="${userId}" ${isSelected}>👤 Utilisateur #${userId.slice(-6).toUpperCase()} (En ligne)</option>`;
                         }
                     });
                 }
                 
                 if (!foundActive) {
-                    userSelect.innerHTML = '<option value="">-- Aucun utilisateur actif actuellement --</option>';
+                    userSelect.innerHTML = '<option value="">-- Aucun utilisateur actif --</option>';
                 }
             });
         }
 
-        // Écouter les infos GPS de l'utilisateur connecté
         function loadUserInfo(userId) {
             if (locationListenerRef) {
                 off(locationListenerRef);
@@ -306,15 +207,24 @@
                 const location = snapshot.val();
                 if (location) {
                     userInfoDiv.style.display = 'block';
-                    userInfoDiv.innerHTML = `
-                        <strong>📍 Position GPS de l'utilisateur :</strong><br>
-                        Latitude : ${location.lat}<br>
-                        Longitude : ${location.lng}<br>
-                        <a href="https://www.google.com/maps?q=${location.lat},${location.lng}" 
-                           target="_blank" style="color: #667eea; text-decoration: underline;">
-                            🗺️ Ouvrir dans Google Maps
-                        </a>
-                        <br><small style="color: #64748b;">Mis à jour à : ${new Date(location.timestamp).toLocaleTimeString()}</small>
+                    gpsDataDiv.innerHTML = `
+                        <div class="space-y-1">
+                            <span class="text-xs text-slate-500 block">Latitude</span>
+                            <span class="font-mono text-slate-200 font-bold">${location.lat}</span>
+                        </div>
+                        <div class="space-y-1">
+                            <span class="text-xs text-slate-500 block">Longitude</span>
+                            <span class="font-mono text-slate-200 font-bold">${location.lng}</span>
+                        </div>
+                        <div class="pt-2">
+                            <a href="https://www.google.com/maps?q=${location.lat},${location.lng}" 
+                               target="_blank" class="w-full inline-block text-center py-2 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-semibold rounded-xl text-xs transition-all">
+                                🗺️ Ouvrir dans Google Maps
+                            </a>
+                        </div>
+                        <div class="text-[10px] text-slate-500 text-right pt-1">
+                            Mis à jour : ${new Date(location.timestamp).toLocaleTimeString()}
+                        </div>
                     `;
                 } else {
                     userInfoDiv.style.display = 'none';
@@ -325,37 +235,45 @@
         function connectToUser() {
             currentUserId = userSelect.value;
             if (!currentUserId) {
-                setStatus("⚠️ Sélectionnez un utilisateur d'abord");
+                setSystemStatus("⚠️ Choisissez une cible", "pending");
+                addLog("⚠️ Erreur : aucun utilisateur sélectionné.");
                 return;
             }
 
-            // Nettoyer toute ancienne connexion active
             disconnect();
-
             currentUserId = userSelect.value;
-            setStatus("🔄 Connexion au flux d'images...");
+            
+            setSystemStatus("🔄 Connexion...", "pending");
             connectBtn.disabled = true;
             disconnectBtn.disabled = false;
             fullscreenBtn.disabled = false;
-
-            // Pointer l'écouteur vers le nœud où l'utilisateur envoie son flux d'images
-            frameListenerRef = ref(database, `live/${currentUserId}/frame`);
-            addLog(`🔍 Demande du flux pour l'utilisateur #${currentUserId.slice(-6)}...`);
             
+            addLog(`🔍 Demande du flux pour l'utilisateur #${currentUserId.slice(-6).toUpperCase()}...`);
+            
+            frameListenerRef = ref(database, `live/${currentUserId}/frame`);
+            frameCount = 0;
+
             onValue(frameListenerRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data && data.image) {
                     placeholderText.style.display = 'none';
-                    remoteImage.src = data.image; // Injecte le flux Base64 directement
+                    remoteImage.src = data.image; // Insertion directe du Base64 dans le tag <img>
                     remoteImage.style.display = 'block';
-                    
-                    if (statusDiv.style.background !== 'rgb(220, 38, 38)') { // Si pas rouge live
-                        setStatus("🔴 LIVE - Réception des photos", true);
-                        addLog("✅ Flux d'images stabilisé !");
+                    frameCount++;
+
+                    const latency = Date.now() - data.timestamp;
+                    metaLatency.innerText = `${latency} ms`;
+                    metaRes.innerText = `${remoteImage.naturalWidth || '--'} x ${remoteImage.naturalHeight || '--'} px`;
+
+                    if (frameCount === 1) {
+                        setSystemStatus("🔴 EN DIRECT", "live");
+                        addLog("✅ Flux d'images reçu et stabilisé !");
                     }
                 } else {
-                    addLog("⚠️ En attente de la première image de l'utilisateur...");
+                    addLog("⚠️ En attente du démarrage de la caméra côté utilisateur...");
                 }
+            }, (error) => {
+                addLog(`❌ Erreur Firebase: ${error.message}`);
             });
 
             loadUserInfo(currentUserId);
@@ -373,14 +291,18 @@
             
             remoteImage.src = "";
             remoteImage.style.display = 'none';
-            placeholderText.style.display = 'block';
+            placeholderText.style.display = 'flex';
             userInfoDiv.style.display = 'none';
             
             connectBtn.disabled = false;
             disconnectBtn.disabled = true;
             fullscreenBtn.disabled = true;
             
-            setStatus("🔌 Déconnecté");
+            metaRes.innerText = "-- px";
+            metaLatency.innerText = "-- ms";
+            frameCount = 0;
+            
+            setSystemStatus("🔌 Déconnecté", "idle");
             addLog("🔌 Déconnecté");
         }
 
@@ -401,13 +323,12 @@
         
         debugBtn.addEventListener('click', () => {
             if (remoteImage.src) {
-                addLog(`ℹ️ [DEBUG] Résolution naturelle de la photo reçue : ${remoteImage.naturalWidth}x${remoteImage.naturalHeight}px`);
+                addLog(`ℹ️ [DEBUG] Image active: ${remoteImage.naturalWidth}x${remoteImage.naturalHeight}px. Nb images reçues: ${frameCount}`);
             } else {
-                addLog(`⚠️ [DEBUG] Aucun flux photo n'est actif pour le moment.`);
+                addLog(`⚠️ [DEBUG] Aucun flux actif.`);
             }
         });
 
-        // Charger la liste des utilisateurs au démarrage
         loadUsers();
     </script>
 </body>
