@@ -94,14 +94,14 @@
                         <button id="connectBtn" class="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
                             🔗 Se connecter
                         </button>
+                        <button id="toggleAudioBtn" disabled class="py-3 px-4 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                            🔊 Activer Audio
+                        </button>
                         <button id="disconnectBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-red-900 hover:text-white text-slate-400 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
                             ⏹️ Arrêter
                         </button>
                         <button id="fullscreenBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
                             🖥️ Plein écran
-                        </button>
-                        <button id="debugBtn" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all col-span-1">
-                            🐛 Debug Vidéo
                         </button>
                     </div>
                 </div>
@@ -136,6 +136,7 @@
         const remoteVideo = document.getElementById('remoteVideo');
         const placeholderText = document.getElementById('placeholderText');
         const connectBtn = document.getElementById('connectBtn');
+        const toggleAudioBtn = document.getElementById('toggleAudioBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
         const debugBtn = document.getElementById('debugBtn');
@@ -326,13 +327,14 @@
                     remoteVideo.style.display = 'block';
                     remoteVideo.srcObject = event.streams[0];
                     
-                    // Force l'écoute audio en retirant le mode silencieux (puisque l'admin clique manuellement pour lancer)
-                    remoteVideo.muted = false;
-                    remoteVideo.volume = 1.0;
+                    // Par défaut, on mute pour éviter le larsen, l'admin doit activer l'audio via le bouton
+                    remoteVideo.muted = true;
+                    toggleAudioBtn.disabled = false;
+                    toggleAudioBtn.innerText = "🔊 Activer Audio";
 
                     if (event.track.kind === 'audio') {
                         document.getElementById('audioStatusBadge').style.display = 'flex';
-                        addLog("🔊 Microphone de la cible capté en direct !");
+                        addLog("🔊 Microphone de la cible détecté.");
                     }
                 };
 
@@ -406,7 +408,6 @@
             }
 
             if (currentUserId) {
-                // On nettoie la réponse admin
                 remove(ref(database, `webrtc/${currentUserId}/answer`));
                 remove(ref(database, `webrtc/${currentUserId}/admin-candidates`));
             }
@@ -418,12 +419,28 @@
             userInfoDiv.style.display = 'none';
             
             connectBtn.disabled = false;
+            toggleAudioBtn.disabled = true;
+            toggleAudioBtn.innerText = "🔊 Activer Audio";
             disconnectBtn.disabled = true;
             fullscreenBtn.disabled = true;
             
             metaState.innerText = "INACTIF";
             setSystemStatus("🔌 Déconnecté", "idle");
             addLog("🔌 Déconnecté");
+        }
+
+        function toggleAudio() {
+            if (remoteVideo.muted) {
+                remoteVideo.muted = false;
+                toggleAudioBtn.innerText = "🔇 Couper Audio";
+                toggleAudioBtn.classList.replace('bg-emerald-800', 'bg-red-800');
+                addLog("🔊 Audio activé.");
+            } else {
+                remoteVideo.muted = true;
+                toggleAudioBtn.innerText = "🔊 Activer Audio";
+                toggleAudioBtn.classList.replace('bg-red-800', 'bg-emerald-800');
+                addLog("🔇 Audio coupé.");
+            }
         }
 
         function toggleFullscreen() {
@@ -437,6 +454,7 @@
         }
 
         connectBtn.addEventListener('click', connectToUser);
+        toggleAudioBtn.addEventListener('click', toggleAudio);
         disconnectBtn.addEventListener('click', disconnect);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
         userSelect.addEventListener('change', disconnect);
