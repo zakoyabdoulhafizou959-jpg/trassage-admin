@@ -14,6 +14,7 @@
         body {
             font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
             background: #0f172a;
+            color: #f8fafc;
             padding: 20px;
         }
 
@@ -28,6 +29,7 @@
             padding: 32px;
             border-radius: 24px;
             margin-bottom: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
         }
 
         h1 {
@@ -36,49 +38,70 @@
         }
 
         .user-selector {
-            background: white;
+            background: #1e293b;
             padding: 20px;
             border-radius: 16px;
             margin-bottom: 24px;
+            border: 1px solid #334155;
+        }
+
+        .user-selector label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #94a3b8;
         }
 
         select {
             width: 100%;
             padding: 12px;
             border-radius: 12px;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #f8fafc;
             font-size: 1rem;
-            margin-top: 8px;
+            outline: none;
         }
 
+        /* Cadre récepteur d'image */
         .live-viewer {
-            background: black;
+            background: #000;
             border-radius: 24px;
             overflow: hidden;
             margin-bottom: 24px;
             position: relative;
-            min-height: 400px;
+            min-height: 480px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #000;
+            border: 2px dashed #334155;
         }
 
-        .live-viewer img {
+        /* Image dynamique au lieu de l'élément video */
+        #remoteImage {
             width: 100%;
             height: auto;
-            background: black;
+            max-height: 70vh;
+            object-fit: contain;
             display: none;
         }
 
+        .placeholder-text {
+            color: #64748b;
+            font-size: 1.2rem;
+            text-align: center;
+            padding: 20px;
+        }
+
         .controls {
-            background: white;
+            background: #1e293b;
             padding: 20px;
             border-radius: 16px;
             margin-bottom: 24px;
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
+            border: 1px solid #334155;
         }
 
         button {
@@ -88,6 +111,16 @@
             cursor: pointer;
             font-weight: 600;
             font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
 
         .btn-primary {
@@ -101,7 +134,7 @@
         }
 
         .fullscreen-btn {
-            background: #1e293b;
+            background: #475569;
             color: white;
         }
 
@@ -111,6 +144,8 @@
             padding: 12px;
             border-radius: 12px;
             text-align: center;
+            border: 1px solid #334155;
+            font-weight: 600;
         }
 
         .live-badge {
@@ -122,6 +157,7 @@
             animation: pulse 1s infinite;
             display: inline-block;
             margin-left: 10px;
+            vertical-align: middle;
         }
 
         @keyframes pulse {
@@ -130,30 +166,25 @@
         }
 
         .user-info {
-            background: white;
+            background: #1e293b;
             padding: 16px;
             border-radius: 12px;
             margin-bottom: 16px;
             display: none;
+            border: 1px solid #334155;
         }
 
         .connection-log {
-            background: #1e293b;
-            color: #94a3b8;
-            padding: 8px;
+            background: #020617;
+            color: #38bdf8;
+            padding: 12px;
             border-radius: 8px;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             margin-top: 8px;
             font-family: monospace;
             max-height: 200px;
             overflow-y: auto;
-        }
-
-        .placeholder-text {
-            color: white;
-            text-align: center;
-            position: absolute;
-            pointer-events: none;
+            border: 1px solid #1e293b;
         }
     </style>
 </head>
@@ -161,32 +192,32 @@
     <div class="container">
         <div class="header">
             <h1>🎥 Administration - Live View</h1>
-            <p>Visualisation en temps réel (flux photo en continu)</p>
+            <p>Visualisation photo et coordonnées GPS des utilisateurs</p>
         </div>
 
         <div class="user-selector">
-            <label>👤 Sélectionner un utilisateur:</label>
+            <label>👤 Sélectionner un utilisateur en ligne :</label>
             <select id="userSelect">
-                <option value="">-- Chargement des utilisateurs --</option>
+                <option value="">-- Attente d'utilisateurs actifs --</option>
             </select>
         </div>
 
         <div id="userInfo" class="user-info"></div>
 
         <div class="live-viewer" id="liveViewer">
-            <img id="liveImage" alt="Flux vidéo">
-            <div class="placeholder-text" id="placeholder">📭 En attente du flux...</div>
+            <div id="placeholderText" class="placeholder-text">💡 Sélectionnez un utilisateur et cliquez sur "Se connecter"</div>
+            <img id="remoteImage" alt="Flux Live de l'utilisateur">
         </div>
 
         <div class="controls">
-            <button id="connectBtn" class="btn-primary">🔗 Activer le live</button>
-            <button id="disconnectBtn" class="btn-danger" disabled>⏹️ Désactiver</button>
+            <button id="connectBtn" class="btn-primary">🔗 Se connecter au flux</button>
+            <button id="disconnectBtn" class="btn-danger" disabled>⏹️ Déconnecter</button>
             <button id="fullscreenBtn" class="fullscreen-btn" disabled>🖥️ Plein écran</button>
-            <button id="debugBtn" style="background:#475569;">🐛 Debug</button>
+            <button id="debugBtn" style="background:#475569;">🐛 Infos Flux</button>
         </div>
 
         <div id="status" class="status">
-            💡 Sélectionnez un utilisateur
+            💡 En attente d'action
         </div>
         <div id="connectionLog" class="connection-log"></div>
     </div>
@@ -210,10 +241,11 @@
         const database = getDatabase(app);
 
         let currentUserId = null;
-        let frameListener = null;
+        let frameListenerRef = null;
+        let locationListenerRef = null;
 
-        const liveImage = document.getElementById('liveImage');
-        const placeholder = document.getElementById('placeholder');
+        const remoteImage = document.getElementById('remoteImage');
+        const placeholderText = document.getElementById('placeholderText');
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -223,13 +255,9 @@
         const userSelect = document.getElementById('userSelect');
         const userInfoDiv = document.getElementById('userInfo');
 
-        let frameCount = 0;
-        let lastFpsUpdate = Date.now();
-
         function addLog(message) {
             const time = new Date().toLocaleTimeString();
             connectionLog.innerHTML = `[${time}] ${message}<br>` + connectionLog.innerHTML;
-            console.log(`[${time}] ${message}`);
         }
 
         function setStatus(message, isLive = false) {
@@ -242,43 +270,51 @@
             }
         }
 
-        // Charger les utilisateurs actifs
         function loadUsers() {
             const usersRef = ref(database, 'users');
             onValue(usersRef, (snapshot) => {
                 const users = snapshot.val();
-                userSelect.innerHTML = '<option value="">-- Sélectionner un utilisateur --</option>';
                 
+                // Conserver l'utilisateur actuellement sélectionné s'il existe toujours
+                const previousSelection = userSelect.value;
+                userSelect.innerHTML = '<option value="">-- Choisir un utilisateur --</option>';
+                
+                let foundActive = false;
                 if (users) {
                     Object.keys(users).forEach(userId => {
                         if (users[userId].active === true) {
-                            userSelect.innerHTML += `<option value="${userId}">👤 Utilisateur #${userId.slice(-6)} (Actif)</option>`;
+                            foundActive = true;
+                            const isSelected = (userId === previousSelection) ? 'selected' : '';
+                            userSelect.innerHTML += `<option value="${userId}" ${isSelected}>👤 Utilisateur #${userId.slice(-6)} (En ligne)</option>`;
                         }
                     });
                 }
                 
-                if (userSelect.options.length === 1) {
-                    userSelect.innerHTML = '<option value="">-- Aucun utilisateur actif --</option>';
+                if (!foundActive) {
+                    userSelect.innerHTML = '<option value="">-- Aucun utilisateur actif actuellement --</option>';
                 }
             });
         }
 
-        // Charger les infos GPS
+        // Écouter les infos GPS de l'utilisateur connecté
         function loadUserInfo(userId) {
-            const locationRef = ref(database, `users/${userId}/location`);
-            onValue(locationRef, (snapshot) => {
+            if (locationListenerRef) {
+                off(locationListenerRef);
+            }
+            locationListenerRef = ref(database, `users/${userId}/location`);
+            onValue(locationListenerRef, (snapshot) => {
                 const location = snapshot.val();
                 if (location) {
                     userInfoDiv.style.display = 'block';
                     userInfoDiv.innerHTML = `
-                        <strong>📍 Position GPS:</strong><br>
-                        Latitude: ${location.lat}<br>
-                        Longitude: ${location.lng}<br>
+                        <strong>📍 Position GPS de l'utilisateur :</strong><br>
+                        Latitude : ${location.lat}<br>
+                        Longitude : ${location.lng}<br>
                         <a href="https://www.google.com/maps?q=${location.lat},${location.lng}" 
-                           target="_blank" style="color: #667eea;">
-                            🗺️ Voir sur Google Maps
+                           target="_blank" style="color: #667eea; text-decoration: underline;">
+                            🗺️ Ouvrir dans Google Maps
                         </a>
-                        <br><small>Dernière mise à jour: ${new Date(location.timestamp).toLocaleString()}</small>
+                        <br><small style="color: #64748b;">Mis à jour à : ${new Date(location.timestamp).toLocaleTimeString()}</small>
                     `;
                 } else {
                     userInfoDiv.style.display = 'none';
@@ -286,7 +322,6 @@
             });
         }
 
-        // Connexion au flux d'images
         function connectToUser() {
             currentUserId = userSelect.value;
             if (!currentUserId) {
@@ -294,70 +329,51 @@
                 return;
             }
 
+            // Nettoyer toute ancienne connexion active
+            disconnect();
+
+            currentUserId = userSelect.value;
             setStatus("🔄 Connexion au flux d'images...");
             connectBtn.disabled = true;
+            disconnectBtn.disabled = false;
+            fullscreenBtn.disabled = false;
+
+            // Pointer l'écouteur vers le nœud où l'utilisateur envoie son flux d'images
+            frameListenerRef = ref(database, `live/${currentUserId}/frame`);
+            addLog(`🔍 Demande du flux pour l'utilisateur #${currentUserId.slice(-6)}...`);
             
-            addLog(`📡 Connexion à l'utilisateur: ${currentUserId}`);
-            
-            // Réinitialiser le compteur
-            frameCount = 0;
-            lastFpsUpdate = Date.now();
-            
-            // Écouter les frames sur Firebase
-            const frameRef = ref(database, `live/${currentUserId}/frame`);
-            
-            frameListener = onValue(frameRef, (snapshot) => {
-                const frame = snapshot.val();
-                if (frame && frame.image) {
-                    // Afficher l'image
-                    liveImage.src = frame.image;
+            onValue(frameListenerRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data && data.image) {
+                    placeholderText.style.display = 'none';
+                    remoteImage.src = data.image; // Injecte le flux Base64 directement
+                    remoteImage.style.display = 'block';
                     
-                    if (liveImage.style.display === 'none') {
-                        liveImage.style.display = 'block';
-                        placeholder.style.display = 'none';
-                        setStatus("🔴 LIVE - Flux de photos reçu", true);
-                        fullscreenBtn.disabled = false;
-                        addLog("✅ Première image reçue avec succès !");
-                    }
-                    
-                    // Calculer les FPS
-                    frameCount++;
-                    const now = Date.now();
-                    if (now - lastFpsUpdate >= 1000) {
-                        const fps = frameCount;
-                        addLog(`📊 FPS: ${fps} images/seconde`);
-                        frameCount = 0;
-                        lastFpsUpdate = now;
-                        setStatus(`🔴 LIVE - ${fps} fps`, true);
+                    if (statusDiv.style.background !== 'rgb(220, 38, 38)') { // Si pas rouge live
+                        setStatus("🔴 LIVE - Réception des photos", true);
+                        addLog("✅ Flux d'images stabilisé !");
                     }
                 } else {
-                    addLog("⚠️ En attente d'image...");
+                    addLog("⚠️ En attente de la première image de l'utilisateur...");
                 }
             });
-            
+
             loadUserInfo(currentUserId);
-            disconnectBtn.disabled = false;
-            
-            // Timeout si aucune image après 5 secondes
-            setTimeout(() => {
-                if (liveImage.style.display === 'none') {
-                    addLog("❌ Aucune image reçue après 5 secondes");
-                    setStatus("⚠️ Aucun flux - L'utilisateur a-t-il démarré le partage ?");
-                }
-            }, 5000);
         }
 
         function disconnect() {
-            addLog("🔌 Déconnexion...");
-            
-            if (frameListener) {
-                off(frameListener);
-                frameListener = null;
+            if (frameListenerRef) {
+                off(frameListenerRef);
+                frameListenerRef = null;
+            }
+            if (locationListenerRef) {
+                off(locationListenerRef);
+                locationListenerRef = null;
             }
             
-            liveImage.src = "";
-            liveImage.style.display = 'none';
-            placeholder.style.display = 'block';
+            remoteImage.src = "";
+            remoteImage.style.display = 'none';
+            placeholderText.style.display = 'block';
             userInfoDiv.style.display = 'none';
             
             connectBtn.disabled = false;
@@ -369,44 +385,30 @@
         }
 
         function toggleFullscreen() {
-            const viewer = document.getElementById('liveViewer');
-            if (!viewer) return;
-            
             if (!document.fullscreenElement) {
-                viewer.requestFullscreen().catch(err => {
-                    console.error(err);
-                    addLog(`❌ Erreur plein écran: ${err.message}`);
+                remoteImage.requestFullscreen().catch(err => {
+                    console.error("Erreur plein écran:", err);
                 });
-                addLog("🖥️ Mode plein écran activé");
             } else {
                 document.exitFullscreen();
-                addLog("🖥️ Mode plein écran désactivé");
             }
-        }
-
-        function debug() {
-            addLog(`=== DEBUG ===`);
-            addLog(`Utilisateur sélectionné: ${currentUserId || 'aucun'}`);
-            addLog(`Image affichée: ${liveImage.style.display}`);
-            addLog(`Source image: ${liveImage.src ? liveImage.src.substring(0, 50) + '...' : 'vide'}`);
-            addLog(`Dimensions image: ${liveImage.naturalWidth}x${liveImage.naturalHeight}`);
-            addLog(`Listener actif: ${frameListener ? 'oui' : 'non'}`);
         }
 
         connectBtn.addEventListener('click', connectToUser);
         disconnectBtn.addEventListener('click', disconnect);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
-        debugBtn.addEventListener('click', debug);
+        userSelect.addEventListener('change', disconnect);
         
-        userSelect.addEventListener('change', () => {
-            if (frameListener) {
-                disconnect();
+        debugBtn.addEventListener('click', () => {
+            if (remoteImage.src) {
+                addLog(`ℹ️ [DEBUG] Résolution naturelle de la photo reçue : ${remoteImage.naturalWidth}x${remoteImage.naturalHeight}px`);
+            } else {
+                addLog(`⚠️ [DEBUG] Aucun flux photo n'est actif pour le moment.`);
             }
         });
 
-        // Charger les utilisateurs au démarrage
+        // Charger la liste des utilisateurs au démarrage
         loadUsers();
-        addLog("🚀 Page admin chargée - En attente de sélection utilisateur");
     </script>
 </body>
 </html>
